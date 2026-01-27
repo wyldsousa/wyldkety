@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      ad_history: {
+        Row: {
+          ad_type: string
+          id: string
+          reward_amount: number
+          user_id: string
+          watched_at: string
+        }
+        Insert: {
+          ad_type: string
+          id?: string
+          reward_amount: number
+          user_id: string
+          watched_at?: string
+        }
+        Update: {
+          ad_type?: string
+          id?: string
+          reward_amount?: number
+          user_id?: string
+          watched_at?: string
+        }
+        Relationships: []
+      }
       bank_accounts: {
         Row: {
           account_type: string
@@ -53,6 +77,78 @@ export type Database = {
           name?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      categories: {
+        Row: {
+          color: string | null
+          created_at: string
+          icon: string | null
+          id: string
+          is_default: boolean | null
+          name: string
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          icon?: string | null
+          id?: string
+          is_default?: boolean | null
+          name: string
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          icon?: string | null
+          id?: string
+          is_default?: boolean | null
+          name?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      monthly_reports: {
+        Row: {
+          balance: number
+          generated_at: string
+          id: string
+          month: number
+          report_data: Json | null
+          total_expenses: number
+          total_income: number
+          user_id: string
+          year: number
+        }
+        Insert: {
+          balance?: number
+          generated_at?: string
+          id?: string
+          month: number
+          report_data?: Json | null
+          total_expenses?: number
+          total_income?: number
+          user_id: string
+          year: number
+        }
+        Update: {
+          balance?: number
+          generated_at?: string
+          id?: string
+          month?: number
+          report_data?: Json | null
+          total_expenses?: number
+          total_income?: number
+          user_id?: string
+          year?: number
         }
         Relationships: []
       }
@@ -142,6 +238,72 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      virtual_wallet: {
+        Row: {
+          balance: number
+          created_at: string
+          id: string
+          total_earned: number
+          total_withdrawn: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          balance?: number
+          created_at?: string
+          id?: string
+          total_earned?: number
+          total_withdrawn?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          balance?: number
+          created_at?: string
+          id?: string
+          total_earned?: number
+          total_withdrawn?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      withdrawal_requests: {
+        Row: {
+          admin_notes: string | null
+          amount: number
+          created_at: string
+          id: string
+          pix_key: string
+          pix_type: string
+          processed_at: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          amount: number
+          created_at?: string
+          id?: string
+          pix_key: string
+          pix_type: string
+          processed_at?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          admin_notes?: string | null
+          amount?: number
+          created_at?: string
+          id?: string
+          pix_key?: string
+          pix_type?: string
+          processed_at?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
       }
     }
     Views: {
