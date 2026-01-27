@@ -11,6 +11,9 @@ import Dashboard from "./pages/Dashboard";
 import Accounts from "./pages/Accounts";
 import Transactions from "./pages/Transactions";
 import Investments from "./pages/Investments";
+import Reports from "./pages/Reports";
+import Categories from "./pages/Categories";
+import Earnings from "./pages/Earnings";
 import Profile from "./pages/Profile";
 import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
@@ -63,6 +66,27 @@ const App = () => (
               <ProtectedRoute>
                 <AppLayout>
                   <Investments />
+                </AppLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/reports" element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <Reports />
+                </AppLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/categories" element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <Categories />
+                </AppLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/earnings" element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <Earnings />
                 </AppLayout>
               </ProtectedRoute>
             } />
