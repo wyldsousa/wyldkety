@@ -43,22 +43,28 @@ export default function Profile() {
       return;
     }
 
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('A imagem deve ter no máximo 5MB');
+    // Validate file size (max 10MB for better quality)
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('A imagem deve ter no máximo 10MB');
       return;
     }
 
     setIsUploading(true);
 
     try {
-      const fileExt = file.name.split('.').pop();
+      // Create high-quality resized image
+      const resizedFile = await resizeImage(file, 512);
+      
+      const fileExt = 'webp'; // Use WebP for better quality/size ratio
       const filePath = `${user.id}/avatar.${fileExt}`;
 
-      // Upload file to storage
+      // Upload file to storage with high quality
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(filePath, file, { upsert: true });
+        .upload(filePath, resizedFile, { 
+          upsert: true,
+          contentType: 'image/webp'
+        });
 
       if (uploadError) throw uploadError;
 
@@ -78,6 +84,57 @@ export default function Profile() {
     } finally {
       setIsUploading(false);
     }
+  };
+
+  // Resize and compress image for better quality
+  const resizeImage = (file: File, maxSize: number): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+
+      img.onload = () => {
+        let { width, height } = img;
+        
+        // Calculate new dimensions maintaining aspect ratio
+        if (width > height) {
+          if (width > maxSize) {
+            height = (height * maxSize) / width;
+            width = maxSize;
+          }
+        } else {
+          if (height > maxSize) {
+            width = (width * maxSize) / height;
+            height = maxSize;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        // Use high quality rendering
+        if (ctx) {
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, width, height);
+        }
+
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              resolve(blob);
+            } else {
+              reject(new Error('Failed to create blob'));
+            }
+          },
+          'image/webp',
+          0.92 // High quality
+        );
+      };
+
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = URL.createObjectURL(file);
+    });
   };
 
   const getInitials = (name: string | null) => {

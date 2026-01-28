@@ -9,18 +9,27 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, ArrowLeftRight, TrendingUp, TrendingDown, Pencil, Trash2, Search } from 'lucide-react';
 import { useTransactions } from '@/hooks/useTransactions';
 import { useBankAccounts } from '@/hooks/useBankAccounts';
+import { useCategories } from '@/hooks/useCategories';
 import { formatCurrency, formatDate } from '@/lib/format';
-import { TRANSACTION_CATEGORIES, Transaction } from '@/types/finance';
+import { Transaction } from '@/types/finance';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 export default function Transactions() {
   const { transactions, isLoading, createTransaction, updateTransaction, deleteTransaction } = useTransactions();
   const { accounts } = useBankAccounts();
+  const { incomeCategories, expenseCategories } = useCategories();
   const [open, setOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [transactionType, setTransactionType] = useState<'income' | 'expense' | 'transfer'>('expense');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
+
+  // Get categories based on transaction type
+  const getCategories = () => {
+    if (transactionType === 'income') return incomeCategories;
+    if (transactionType === 'expense') return expenseCategories;
+    return ['Transferência'];
+  };
 
   const filteredTransactions = transactions.filter(t => {
     const matchesSearch = t.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -152,7 +161,7 @@ export default function Transactions() {
                       <SelectValue placeholder="Selecione a categoria" />
                     </SelectTrigger>
                     <SelectContent>
-                      {TRANSACTION_CATEGORIES[transactionType].map((cat) => (
+                      {getCategories().map((cat) => (
                         <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                       ))}
                     </SelectContent>

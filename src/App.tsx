@@ -13,7 +13,7 @@ import Transactions from "./pages/Transactions";
 import Investments from "./pages/Investments";
 import Reports from "./pages/Reports";
 import Categories from "./pages/Categories";
-import Earnings from "./pages/Earnings";
+import Reminders from "./pages/Reminders";
 import Profile from "./pages/Profile";
 import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
@@ -83,10 +83,10 @@ const App = () => (
                 </AppLayout>
               </ProtectedRoute>
             } />
-            <Route path="/earnings" element={
+            <Route path="/reminders" element={
               <ProtectedRoute>
                 <AppLayout>
-                  <Earnings />
+                  <Reminders />
                 </AppLayout>
               </ProtectedRoute>
             } />

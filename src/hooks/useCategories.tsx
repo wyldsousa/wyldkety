@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Category } from '@/types/wallet';
+import { Category } from '@/types/app';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
 import { TRANSACTION_CATEGORIES } from '@/types/finance';

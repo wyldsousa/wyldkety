@@ -12,7 +12,7 @@ import {
   Download,
   FileText,
   Tag,
-  Wallet
+  Bell
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -26,7 +26,7 @@ const navItems = [
   { path: '/investments', icon: TrendingUp, label: 'Investimentos' },
   { path: '/reports', icon: FileText, label: 'Relatórios' },
   { path: '/categories', icon: Tag, label: 'Categorias' },
-  { path: '/earnings', icon: Wallet, label: 'Ganhar' },
+  { path: '/reminders', icon: Bell, label: 'Lembretes' },
   { path: '/profile', icon: User, label: 'Perfil' },
 ];
 

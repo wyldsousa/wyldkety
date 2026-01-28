@@ -4,6 +4,7 @@ import { TrendingUp, TrendingDown, Wallet, PiggyBank } from 'lucide-react';
 import { formatCurrency } from '@/lib/format';
 import { useBankAccounts } from '@/hooks/useBankAccounts';
 import { useTransactions } from '@/hooks/useTransactions';
+import { XPProgressCard } from '@/components/XPProgressCard';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from 'recharts';
 import { format, subDays, startOfMonth, endOfMonth, eachDayOfInterval, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -86,6 +87,8 @@ export default function Dashboard() {
         <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
         <p className="text-muted-foreground">Visão geral das suas finanças</p>
       </div>
+      {/* XP Progress Card */}
+      <XPProgressCard />
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
