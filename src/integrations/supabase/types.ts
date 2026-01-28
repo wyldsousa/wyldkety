@@ -14,30 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      ad_history: {
-        Row: {
-          ad_type: string
-          id: string
-          reward_amount: number
-          user_id: string
-          watched_at: string
-        }
-        Insert: {
-          ad_type: string
-          id?: string
-          reward_amount: number
-          user_id: string
-          watched_at?: string
-        }
-        Update: {
-          ad_type?: string
-          id?: string
-          reward_amount?: number
-          user_id?: string
-          watched_at?: string
-        }
-        Relationships: []
-      }
       bank_accounts: {
         Row: {
           account_type: string
@@ -182,6 +158,45 @@ export type Database = {
         }
         Relationships: []
       }
+      reminders: {
+        Row: {
+          amount: number | null
+          completed_at: string | null
+          created_at: string
+          description: string | null
+          due_date: string | null
+          id: string
+          is_completed: boolean
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount?: number | null
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          is_completed?: boolean
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number | null
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          is_completed?: boolean
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       transactions: {
         Row: {
           account_id: string
@@ -239,69 +254,39 @@ export type Database = {
           },
         ]
       }
-      virtual_wallet: {
+      user_progress: {
         Row: {
-          balance: number
           created_at: string
           id: string
-          total_earned: number
-          total_withdrawn: number
+          last_activity_date: string | null
+          level: number
+          streak_days: number
+          transactions_count: number
           updated_at: string
           user_id: string
+          xp: number
         }
         Insert: {
-          balance?: number
           created_at?: string
           id?: string
-          total_earned?: number
-          total_withdrawn?: number
+          last_activity_date?: string | null
+          level?: number
+          streak_days?: number
+          transactions_count?: number
           updated_at?: string
           user_id: string
+          xp?: number
         }
         Update: {
-          balance?: number
           created_at?: string
           id?: string
-          total_earned?: number
-          total_withdrawn?: number
+          last_activity_date?: string | null
+          level?: number
+          streak_days?: number
+          transactions_count?: number
           updated_at?: string
           user_id?: string
-        }
-        Relationships: []
-      }
-      withdrawal_requests: {
-        Row: {
-          admin_notes: string | null
-          amount: number
-          created_at: string
-          id: string
-          pix_key: string
-          pix_type: string
-          processed_at: string | null
-          status: string
-          user_id: string
-        }
-        Insert: {
-          admin_notes?: string | null
-          amount: number
-          created_at?: string
-          id?: string
-          pix_key: string
-          pix_type: string
-          processed_at?: string | null
-          status?: string
-          user_id: string
-        }
-        Update: {
-          admin_notes?: string | null
-          amount?: number
-          created_at?: string
-          id?: string
-          pix_key?: string
-          pix_type?: string
-          processed_at?: string | null
-          status?: string
-          user_id?: string
+          xp?: number
         }
         Relationships: []
       }

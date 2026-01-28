@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { MonthlyReport } from '@/types/wallet';
+import { MonthlyReport } from '@/types/app';
 import { formatCurrency } from './format';
 
 const MONTHS = [
@@ -46,34 +46,59 @@ export function generateReportPDF(report: MonthlyReport, userName: string = 'Usu
   
   // Expense box
   doc.setFillColor(254, 226, 226);
-  doc.roundedRect(77, summaryY, 55, 30, 3, 3, 'F');
+  doc.roundedRect(77, summaryY, 40, 30, 3, 3, 'F');
   doc.setTextColor(220, 38, 38);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.text('Despesas', 83, summaryY + 10);
-  doc.setFontSize(14);
+  doc.text('Despesas', 82, summaryY + 10);
+  doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
-  doc.text(formatCurrency(report.total_expenses), 83, summaryY + 22);
+  doc.text(formatCurrency(report.total_expenses), 82, summaryY + 22);
   
   // Balance box
   const balanceColor = report.balance >= 0 ? [22, 163, 74] : [220, 38, 38];
   doc.setFillColor(241, 245, 249);
-  doc.roundedRect(140, summaryY, 55, 30, 3, 3, 'F');
+  doc.roundedRect(122, summaryY, 40, 30, 3, 3, 'F');
   doc.setTextColor(balanceColor[0], balanceColor[1], balanceColor[2]);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.text('Saldo', 146, summaryY + 10);
-  doc.setFontSize(14);
+  doc.text('Balanço', 127, summaryY + 10);
+  doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
-  doc.text(formatCurrency(report.balance), 146, summaryY + 22);
+  doc.text(formatCurrency(report.balance), 127, summaryY + 22);
+  
+  // Account balance box
+  const reportData = report.report_data as any;
+  const accountBalances = reportData?.accountBalances ?? 0;
+  const investedBalance = reportData?.investedBalance ?? 0;
+  
+  doc.setFillColor(230, 240, 255);
+  doc.roundedRect(167, summaryY, 40, 30, 3, 3, 'F');
+  doc.setTextColor(59, 130, 246);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Saldo Contas', 170, summaryY + 10);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text(formatCurrency(accountBalances), 170, summaryY + 22);
+  
+  // Second row for invested balance
+  doc.setFillColor(245, 235, 255);
+  doc.roundedRect(14, summaryY + 35, 50, 25, 3, 3, 'F');
+  doc.setTextColor(139, 92, 246);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Investido', 20, summaryY + 45);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text(formatCurrency(investedBalance), 20, summaryY + 55);
   
   // Categories table
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
-  doc.text('Despesas por Categoria', 14, summaryY + 50);
+  doc.text('Despesas por Categoria', 14, summaryY + 80);
   
-  const reportData = report.report_data as any;
   const categoryData = Object.entries(reportData?.byCategory || {})
     .filter(([_, values]: [string, any]) => values.expense > 0)
     .map(([category, values]: [string, any]) => [
@@ -84,7 +109,7 @@ export function generateReportPDF(report: MonthlyReport, userName: string = 'Usu
   
   if (categoryData.length > 0) {
     autoTable(doc, {
-      startY: summaryY + 55,
+      startY: summaryY + 85,
       head: [['Categoria', 'Valor', '% do Total']],
       body: categoryData,
       theme: 'striped',

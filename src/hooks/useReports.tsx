@@ -1,13 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { MonthlyReport } from '@/types/wallet';
+import { MonthlyReport } from '@/types/app';
 import { Transaction } from '@/types/finance';
 import { useAuth } from './useAuth';
+import { useBankAccounts } from './useBankAccounts';
 import { toast } from 'sonner';
 
 export function useReports() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { totalBalance, totalInvestments } = useBankAccounts();
 
   const { data: reports = [], isLoading } = useQuery({
     queryKey: ['monthly_reports', user?.id],
@@ -81,6 +83,8 @@ export function useReports() {
           }
           return acc;
         }, {} as Record<string, { income: number; expense: number }>),
+        accountBalances: totalBalance,
+        investedBalance: totalInvestments,
       };
       
       // Upsert report
@@ -112,9 +116,28 @@ export function useReports() {
     },
   });
 
+  const deleteReport = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('monthly_reports')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['monthly_reports'] });
+      toast.success('Relatório excluído!');
+    },
+    onError: (error) => {
+      toast.error('Erro ao excluir relatório: ' + error.message);
+    },
+  });
+
   return {
     reports,
     isLoading,
     generateReport,
+    deleteReport,
   };
 }
