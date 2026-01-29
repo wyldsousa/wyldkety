@@ -9,6 +9,7 @@ import { Plus, Building2, Pencil, Trash2 } from 'lucide-react';
 import { useBankAccounts } from '@/hooks/useBankAccounts';
 import { formatCurrency } from '@/lib/format';
 import { BANK_COLORS } from '@/types/finance';
+import { getBankInfo } from '@/lib/bankLogos';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 export default function Accounts() {
@@ -168,12 +169,31 @@ export default function Accounts() {
               <CardContent className="p-6">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div 
-                      className="w-12 h-12 rounded-xl flex items-center justify-center"
-                      style={{ backgroundColor: `${account.color}20` }}
-                    >
-                      <Building2 className="w-6 h-6" style={{ color: account.color }} />
-                    </div>
+                    {(() => {
+                      const bankInfo = getBankInfo(account.bank_name);
+                      return bankInfo.logo ? (
+                        <div 
+                          className="w-12 h-12 rounded-xl flex items-center justify-center bg-white p-1.5 shadow-sm"
+                        >
+                          <img 
+                            src={bankInfo.logo} 
+                            alt={account.bank_name}
+                            className="w-full h-full object-contain"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              e.currentTarget.parentElement!.innerHTML = `<div class="w-full h-full rounded-lg flex items-center justify-center" style="background-color: ${account.color}20"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${account.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"></path><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"></path><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"></path><path d="M10 6h4"></path><path d="M10 10h4"></path><path d="M10 14h4"></path><path d="M10 18h4"></path></svg></div>`;
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <div 
+                          className="w-12 h-12 rounded-xl flex items-center justify-center"
+                          style={{ backgroundColor: `${account.color}20` }}
+                        >
+                          <Building2 className="w-6 h-6" style={{ color: account.color }} />
+                        </div>
+                      );
+                    })()}
                     <div>
                       <h3 className="font-semibold text-foreground">{account.name}</h3>
                       <p className="text-sm text-muted-foreground">{account.bank_name}</p>

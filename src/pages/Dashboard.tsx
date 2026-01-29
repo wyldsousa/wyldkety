@@ -4,14 +4,30 @@ import { TrendingUp, TrendingDown, Wallet, PiggyBank } from 'lucide-react';
 import { formatCurrency } from '@/lib/format';
 import { useBankAccounts } from '@/hooks/useBankAccounts';
 import { useTransactions } from '@/hooks/useTransactions';
+import { useCategories } from '@/hooks/useCategories';
 import { XPProgressCard } from '@/components/XPProgressCard';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from 'recharts';
-import { format, subDays, startOfMonth, endOfMonth, eachDayOfInterval, parseISO } from 'date-fns';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, Legend } from 'recharts';
+import { format, subDays, eachDayOfInterval, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+
+// Default colors for categories without custom colors
+const DEFAULT_COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#8B5CF6', '#EF4444', '#EC4899', '#06B6D4', '#84CC16'];
 
 export default function Dashboard() {
   const { totalBalance, totalInvestments, accounts } = useBankAccounts();
   const { transactions, totalIncome, totalExpenses } = useTransactions();
+  const { categories } = useCategories();
+
+  // Create a color map for categories
+  const categoryColorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    categories.forEach(cat => {
+      if (cat.color) {
+        map[cat.name] = cat.color;
+      }
+    });
+    return map;
+  }, [categories]);
 
   // Prepare chart data for the last 30 days
   const areaChartData = useMemo(() => {
@@ -37,20 +53,26 @@ export default function Dashboard() {
     });
   }, [transactions]);
 
-  // Prepare expense categories data
+  // Prepare expense categories data with custom colors
   const categoryData = useMemo(() => {
-    const categories: Record<string, number> = {};
+    const categoriesMap: Record<string, { value: number; color: string }> = {};
     transactions
       .filter(t => t.type === 'expense')
-      .forEach(t => {
-        categories[t.category] = (categories[t.category] || 0) + Number(t.amount);
+      .forEach((t, index) => {
+        if (!categoriesMap[t.category]) {
+          categoriesMap[t.category] = { 
+            value: 0, 
+            color: categoryColorMap[t.category] || DEFAULT_COLORS[Object.keys(categoriesMap).length % DEFAULT_COLORS.length]
+          };
+        }
+        categoriesMap[t.category].value += Number(t.amount);
       });
     
-    return Object.entries(categories)
-      .map(([name, value]) => ({ name, value }))
+    return Object.entries(categoriesMap)
+      .map(([name, data]) => ({ name, value: data.value, color: data.color }))
       .sort((a, b) => b.value - a.value)
-      .slice(0, 5);
-  }, [transactions]);
+      .slice(0, 6);
+  }, [transactions, categoryColorMap]);
 
   // Monthly comparison data
   const monthlyData = useMemo(() => {
@@ -71,8 +93,6 @@ export default function Dashboard() {
       .map(([month, data]) => ({ month, ...data }))
       .slice(-6);
   }, [transactions]);
-
-  const COLORS = ['hsl(160, 84%, 39%)', 'hsl(200, 90%, 50%)', 'hsl(38, 92%, 50%)', 'hsl(270, 60%, 55%)', 'hsl(0, 72%, 51%)'];
 
   const stats = [
     { title: 'Saldo Total', value: totalBalance, icon: Wallet, color: 'primary' },
@@ -156,7 +176,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Pie Chart */}
+        {/* Pie Chart with custom category colors */}
         <Card className="shadow-soft border-0">
           <CardHeader>
             <CardTitle className="text-lg">Despesas por Categoria</CardTitle>
@@ -176,7 +196,7 @@ export default function Dashboard() {
                       dataKey="value"
                     >
                       {categoryData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
                     <Tooltip formatter={(value: number) => formatCurrency(value)} />
@@ -190,12 +210,12 @@ export default function Dashboard() {
             </div>
             {categoryData.length > 0 && (
               <div className="mt-4 space-y-2">
-                {categoryData.map((item, index) => (
+                {categoryData.map((item) => (
                   <div key={item.name} className="flex items-center justify-between text-sm">
                     <div className="flex items-center gap-2">
                       <div 
                         className="w-3 h-3 rounded-full" 
-                        style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                        style={{ backgroundColor: item.color }}
                       />
                       <span className="text-foreground">{item.name}</span>
                     </div>
