@@ -12,7 +12,8 @@ import {
   Download,
   FileText,
   Tag,
-  Bell
+  Bell,
+  Bot
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -21,6 +22,7 @@ import { cn } from '@/lib/utils';
 
 const navItems = [
   { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  { path: '/assistant', icon: Bot, label: 'Assistente IA' },
   { path: '/accounts', icon: Building2, label: 'Contas' },
   { path: '/transactions', icon: ArrowLeftRight, label: 'Transações' },
   { path: '/investments', icon: TrendingUp, label: 'Investimentos' },

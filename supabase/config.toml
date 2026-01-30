@@ -1,1 +1,7 @@
 project_id = "tzgkncrsjicrecwgjwpx"
+
+[functions.parse-transaction]
+verify_jwt = false
+
+[functions.financial-assistant]
+verify_jwt = false
