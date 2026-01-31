@@ -10,6 +10,7 @@ import { useState } from 'react';
 interface TransactionPreviewProps {
   transaction: PendingTransaction;
   accounts: Array<{ id: string; name: string; bank_name: string }>;
+  cards?: Array<{ id: string; name: string; bank_name: string }>;
   categories: { income: string[]; expense: string[] };
   onConfirm: (transaction: PendingTransaction) => void;
   onCancel: () => void;
@@ -20,6 +21,7 @@ interface TransactionPreviewProps {
 export function TransactionPreview({
   transaction,
   accounts,
+  cards = [],
   categories,
   onConfirm,
   onCancel,
@@ -34,13 +36,14 @@ export function TransactionPreview({
     setIsEditing(false);
   };
 
-  const typeLabels = {
+  const typeLabels: Record<string, { label: string; color: string; bg: string }> = {
     income: { label: 'Receita', color: 'text-income', bg: 'bg-income/10' },
     expense: { label: 'Despesa', color: 'text-expense', bg: 'bg-expense/10' },
-    transfer: { label: 'Transferência', color: 'text-primary', bg: 'bg-primary/10' }
+    transfer: { label: 'Transferência', color: 'text-primary', bg: 'bg-primary/10' },
+    credit_card: { label: 'Cartão de Crédito', color: 'text-purple-500', bg: 'bg-purple-500/10' }
   };
 
-  const typeInfo = typeLabels[transaction.type];
+  const typeInfo = typeLabels[transaction.type] || typeLabels.expense;
   const categoryList = transaction.type === 'income' ? categories.income : categories.expense;
 
   if (isEditing) {
@@ -217,13 +220,13 @@ export function TransactionPreview({
             </div>
           )}
 
-          {/* Account */}
+          {/* Account or Card */}
           {transaction.type !== 'transfer' && (
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground text-sm flex items-center gap-1">
-                <CreditCard className="w-3 h-3" /> Conta
+                <CreditCard className="w-3 h-3" /> {transaction.type === 'credit_card' ? 'Cartão' : 'Conta'}
               </span>
-              <span className="text-sm">{transaction.account_name}</span>
+              <span className="text-sm">{transaction.type === 'credit_card' ? transaction.card_name : transaction.account_name}</span>
             </div>
           )}
 

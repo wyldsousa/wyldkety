@@ -47,6 +47,7 @@ serve(async (req) => {
     const { 
       message, 
       accounts, 
+      cards,
       categories,
       action,
       userId,
@@ -65,9 +66,13 @@ serve(async (req) => {
     // Create Supabase client for database operations
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
-    // Handle direct actions (confirm, edit, delete, query)
+    // Handle direct actions
     if (action === 'confirm_transaction' && transactionData && userId) {
       return await handleConfirmTransaction(supabase, transactionData, userId, corsHeaders);
+    }
+
+    if (action === 'confirm_credit_card_transaction' && transactionData && userId) {
+      return await handleCreditCardTransaction(supabase, transactionData, userId, corsHeaders);
     }
 
     if (action === 'delete_transaction' && transactionData?.id && userId) {
@@ -82,26 +87,36 @@ serve(async (req) => {
     const systemPrompt = `Você é um assistente financeiro inteligente e conversacional chamado "Fin". Você ajuda usuários a gerenciar suas finanças através de conversa natural em português brasileiro.
 
 SUAS CAPACIDADES:
-1. Entender e extrair transações de linguagem natural
-2. Detectar parcelamentos (em Xx, X parcelas, dividido em X)
-3. Detectar recorrências (mensal, semanal, anual, assinatura, aluguel)
-4. Detectar transferências entre contas
-5. Entender datas relativas (hoje, ontem, semana passada, dia X)
-6. Responder perguntas sobre finanças
-7. Fornecer insights financeiros
+1. Criar transações (receitas e despesas)
+2. Criar transferências entre contas
+3. Criar compras no cartão de crédito
+4. Criar categorias novas
+5. Criar lembretes de pagamentos
+6. Detectar parcelamentos (em Xx, X parcelas, dividido em X)
+7. Detectar recorrências (mensal, semanal, anual, assinatura, aluguel)
+8. Entender datas relativas (hoje, ontem, semana passada, dia X)
+9. Responder perguntas sobre finanças
+10. Fornecer insights financeiros
 
 REGRAS IMPORTANTES:
 - SEMPRE seja amigável e conversacional
 - Para transações, SEMPRE use a função apropriada
 - Para perguntas/consultas, use a função query_finances
-- Detecte o INTENT do usuário: criar transação, consultar dados, ou conversa geral
+- Detecte o INTENT do usuário corretamente
 
 CONTEXTO DO USUÁRIO:
 Contas disponíveis:
 ${accounts?.map((a: any) => `- ${a.name} (${a.bank_name}): ID "${a.id}"`).join('\n') || 'Nenhuma conta cadastrada'}
 
+Cartões de crédito disponíveis:
+${cards?.map((c: any) => `- ${c.name} (${c.bank_name}): ID "${c.id}"`).join('\n') || 'Nenhum cartão cadastrado'}
+
 Categorias de receita: ${categories?.income?.join(', ') || 'Salário, Freelance, Investimentos, Outros'}
 Categorias de despesa: ${categories?.expense?.join(', ') || 'Alimentação, Transporte, Moradia, Contas, Lazer, Saúde, Educação, Outros'}
+
+DETECÇÃO DE CARTÃO DE CRÉDITO:
+- "no crédito", "no cartão", "cartão de crédito", "crédito" → credit_card
+- Compras parceladas geralmente são no cartão
 
 DETECÇÃO DE PARCELAMENTO:
 - "em 10x" → 10 parcelas
@@ -109,11 +124,12 @@ DETECÇÃO DE PARCELAMENTO:
 - "dividido em 6" → 6 parcelas
 - "parcelado em 12x" → 12 parcelas
 
-DETECÇÃO DE RECORRÊNCIA:
-- "mensal", "todo mês" → monthly
-- "semanal", "toda semana" → weekly
-- "anual", "todo ano" → yearly
-- "assinatura", "aluguel", "salário" → recurring
+DETECÇÃO DE LEMBRETE:
+- "lembrar", "lembrete", "não esquecer" → create_reminder
+- "pagar X dia Y" → create_reminder
+
+DETECÇÃO DE CATEGORIA:
+- "criar categoria", "nova categoria" → create_category
 
 DETECÇÃO DE TRANSFERÊNCIA:
 - "transferi X de A para B" → transfer
@@ -125,17 +141,7 @@ DATAS:
 - "ontem" → data -1 dia
 - "anteontem" → data -2 dias
 - "semana passada" → data -7 dias
-- "dia 15" → dia 15 do mês atual
-
-EXEMPLOS DE FRASES E AÇÕES:
-- "Gastei 50 no mercado" → create_transaction (expense)
-- "Recebi 3000 de salário" → create_transaction (income)
-- "Comprei um celular de 2000 em 10x no Nubank" → create_transaction com installments=10
-- "Paguei aluguel de 1500, mensal" → create_transaction com recurrence=monthly
-- "Transferi 500 do Inter pro Nubank" → create_transfer
-- "Quanto gastei este mês?" → query_finances
-- "Quanto sobrou?" → query_finances
-- "Quais meus maiores gastos?" → query_finances`;
+- "dia 15" → dia 15 do mês atual`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -206,6 +212,48 @@ EXEMPLOS DE FRASES E AÇÕES:
           {
             type: "function",
             function: {
+              name: "create_credit_card_transaction",
+              description: "Cria uma compra no cartão de crédito",
+              parameters: {
+                type: "object",
+                properties: {
+                  amount: { 
+                    type: "number",
+                    description: "Valor da compra"
+                  },
+                  category: { 
+                    type: "string",
+                    description: "Categoria da compra"
+                  },
+                  description: { 
+                    type: "string",
+                    description: "Descrição da compra"
+                  },
+                  card_id: { 
+                    type: "string",
+                    description: "ID do cartão de crédito"
+                  },
+                  date: {
+                    type: "string",
+                    description: "Data da compra"
+                  },
+                  installments: {
+                    type: "number",
+                    description: "Número de parcelas (1 se à vista)"
+                  },
+                  ai_response: {
+                    type: "string",
+                    description: "Resposta amigável da IA"
+                  }
+                },
+                required: ["amount", "category", "description", "card_id", "ai_response"],
+                additionalProperties: false
+              }
+            }
+          },
+          {
+            type: "function",
+            function: {
               name: "create_transfer",
               description: "Cria uma transferência entre contas",
               parameters: {
@@ -237,6 +285,71 @@ EXEMPLOS DE FRASES E AÇÕES:
                   }
                 },
                 required: ["amount", "from_account_id", "to_account_id", "ai_response"],
+                additionalProperties: false
+              }
+            }
+          },
+          {
+            type: "function",
+            function: {
+              name: "create_category",
+              description: "Cria uma nova categoria de receita ou despesa",
+              parameters: {
+                type: "object",
+                properties: {
+                  name: { 
+                    type: "string",
+                    description: "Nome da categoria"
+                  },
+                  type: {
+                    type: "string",
+                    enum: ["income", "expense"],
+                    description: "Tipo da categoria"
+                  },
+                  color: {
+                    type: "string",
+                    description: "Cor em hex (opcional)"
+                  },
+                  ai_response: {
+                    type: "string",
+                    description: "Resposta amigável da IA"
+                  }
+                },
+                required: ["name", "type", "ai_response"],
+                additionalProperties: false
+              }
+            }
+          },
+          {
+            type: "function",
+            function: {
+              name: "create_reminder",
+              description: "Cria um lembrete de pagamento ou dívida",
+              parameters: {
+                type: "object",
+                properties: {
+                  title: { 
+                    type: "string",
+                    description: "Título do lembrete"
+                  },
+                  description: {
+                    type: "string",
+                    description: "Descrição adicional"
+                  },
+                  amount: {
+                    type: "number",
+                    description: "Valor (se aplicável)"
+                  },
+                  due_date: {
+                    type: "string",
+                    description: "Data de vencimento"
+                  },
+                  ai_response: {
+                    type: "string",
+                    description: "Resposta amigável da IA"
+                  }
+                },
+                required: ["title", "ai_response"],
                 additionalProperties: false
               }
             }
@@ -332,6 +445,11 @@ EXEMPLOS DE FRASES E AÇÕES:
         args.date = parseRelativeDate(args.date);
       } else {
         args.date = new Date().toISOString().split('T')[0];
+      }
+
+      // Process due_date for reminders
+      if (args.due_date) {
+        args.due_date = parseRelativeDate(args.due_date);
       }
 
       return new Response(JSON.stringify({ 
@@ -462,6 +580,122 @@ async function handleConfirmTransaction(
   }
 }
 
+// Handler for credit card transactions
+async function handleCreditCardTransaction(
+  supabase: any,
+  transactionData: any,
+  userId: string,
+  corsHeaders: any
+) {
+  try {
+    const installments = transactionData.installments || 1;
+    const baseAmount = transactionData.amount / installments;
+    const baseDate = new Date(transactionData.date || new Date());
+
+    // Get card info for invoice calculation
+    const { data: card } = await supabase
+      .from('credit_cards')
+      .select('*')
+      .eq('id', transactionData.card_id)
+      .single();
+
+    if (!card) throw new Error("Cartão não encontrado");
+
+    // Create transactions for each installment
+    for (let i = 0; i < installments; i++) {
+      const installmentDate = new Date(baseDate);
+      installmentDate.setMonth(installmentDate.getMonth() + i);
+      
+      // Determine which invoice this installment goes to
+      const purchaseDay = installmentDate.getDate();
+      let invoiceMonth = installmentDate.getMonth() + 1;
+      let invoiceYear = installmentDate.getFullYear();
+      
+      // If purchase is after closing day, goes to next month's invoice
+      if (purchaseDay > card.closing_day) {
+        invoiceMonth++;
+        if (invoiceMonth > 12) {
+          invoiceMonth = 1;
+          invoiceYear++;
+        }
+      }
+
+      // Get or create invoice
+      let { data: invoice } = await supabase
+        .from('credit_card_invoices')
+        .select('*')
+        .eq('card_id', transactionData.card_id)
+        .eq('month', invoiceMonth)
+        .eq('year', invoiceYear)
+        .single();
+
+      if (!invoice) {
+        const { data: newInvoice, error: invoiceError } = await supabase
+          .from('credit_card_invoices')
+          .insert({
+            user_id: userId,
+            card_id: transactionData.card_id,
+            month: invoiceMonth,
+            year: invoiceYear,
+            total_amount: 0,
+            minimum_amount: 0,
+            status: 'open'
+          })
+          .select()
+          .single();
+
+        if (invoiceError) throw invoiceError;
+        invoice = newInvoice;
+      }
+
+      // Create the transaction
+      const description = installments > 1
+        ? `${transactionData.description} (${i + 1}/${installments})`
+        : transactionData.description;
+
+      const { error: txError } = await supabase
+        .from('credit_card_transactions')
+        .insert({
+          user_id: userId,
+          card_id: transactionData.card_id,
+          invoice_id: invoice.id,
+          amount: baseAmount,
+          description: description,
+          category: transactionData.category,
+          date: installmentDate.toISOString().split('T')[0],
+          installment_number: i + 1,
+          total_installments: installments
+        });
+
+      if (txError) throw txError;
+
+      // Update invoice total
+      await supabase
+        .from('credit_card_invoices')
+        .update({ total_amount: Number(invoice.total_amount) + baseAmount })
+        .eq('id', invoice.id);
+    }
+
+    return new Response(JSON.stringify({ 
+      success: true,
+      message: installments > 1 
+        ? `Compra em ${installments}x registrada no cartão!`
+        : "Compra registrada no cartão!"
+    }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+
+  } catch (error) {
+    console.error("Credit card transaction error:", error);
+    return new Response(JSON.stringify({ 
+      error: "Erro ao registrar compra no cartão"
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+}
+
 // Handler for deleting transactions
 async function handleDeleteTransaction(
   supabase: any,
@@ -585,6 +819,29 @@ async function handleQuery(
 
     const totalBalance = accountData?.reduce((sum: number, a: any) => sum + Number(a.balance), 0) || 0;
 
+    // Get credit card info
+    const { data: cardData } = await supabase
+      .from('credit_cards')
+      .select('name, credit_limit')
+      .eq('user_id', userId);
+
+    const { data: invoiceData } = await supabase
+      .from('credit_card_invoices')
+      .select('total_amount, status')
+      .eq('user_id', userId)
+      .in('status', ['open', 'closed']);
+
+    const totalCreditUsed = invoiceData?.reduce((sum: number, i: any) => sum + Number(i.total_amount), 0) || 0;
+
+    // Get reminders
+    const { data: reminders } = await supabase
+      .from('reminders')
+      .select('title, amount, due_date, is_completed')
+      .eq('user_id', userId)
+      .eq('is_completed', false)
+      .order('due_date', { ascending: true })
+      .limit(5);
+
     // Build context for AI
     const financialContext = `
 DADOS FINANCEIROS DO USUÁRIO (${now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}):
@@ -597,6 +854,13 @@ Saldo total em contas: R$ ${totalBalance.toFixed(2)}
 
 Contas:
 ${accountData?.map((a: any) => `- ${a.name} (${a.bank_name}): R$ ${Number(a.balance).toFixed(2)}`).join('\n') || 'Nenhuma conta'}
+
+Cartões de crédito:
+${cardData?.map((c: any) => `- ${c.name}: Limite R$ ${Number(c.credit_limit).toFixed(2)}`).join('\n') || 'Nenhum cartão'}
+Total usado nos cartões: R$ ${totalCreditUsed.toFixed(2)}
+
+Lembretes pendentes:
+${reminders?.map((r: any) => `- ${r.title}${r.amount ? ': R$ ' + Number(r.amount).toFixed(2) : ''}${r.due_date ? ' (vence ' + new Date(r.due_date).toLocaleDateString('pt-BR') + ')' : ''}`).join('\n') || 'Nenhum lembrete'}
 
 Top 5 categorias de gastos:
 ${topCategories.map(([cat, val]) => `- ${cat}: R$ ${val.toFixed(2)}`).join('\n') || 'Sem gastos'}

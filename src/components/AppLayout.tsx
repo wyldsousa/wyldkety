@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   Building2, 
@@ -9,7 +9,7 @@ import {
   Menu, 
   X,
   LogOut,
-  Download,
+  CreditCard,
   FileText,
   Tag,
   Bell,
@@ -25,6 +25,7 @@ const navItems = [
   { path: '/assistant', icon: Bot, label: 'Assistente IA' },
   { path: '/accounts', icon: Building2, label: 'Contas' },
   { path: '/transactions', icon: ArrowLeftRight, label: 'Transações' },
+  { path: '/credit-cards', icon: CreditCard, label: 'Cartões' },
   { path: '/investments', icon: TrendingUp, label: 'Investimentos' },
   { path: '/reports', icon: FileText, label: 'Relatórios' },
   { path: '/categories', icon: Tag, label: 'Categorias' },
@@ -65,14 +66,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       </nav>
 
       <div className="p-4 border-t border-sidebar-border space-y-2">
-        <NavLink
-          to="/install"
-          onClick={() => setOpen(false)}
-          className="flex items-center gap-3 px-4 py-3 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
-        >
-          <Download className="w-5 h-5" />
-          <span className="font-medium">Instalar App</span>
-        </NavLink>
         <Button
           variant="ghost"
           className="w-full justify-start gap-3 px-4 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
