@@ -1,4 +1,4 @@
-import { FinancialAssistantChat } from '@/components/FinancialAssistant';
+import { GlobalChat } from '@/components/FinancialAssistant/GlobalChat';
 
 export default function Assistant() {
   return (
@@ -8,7 +8,7 @@ export default function Assistant() {
         <p className="text-muted-foreground">Converse com a IA para gerenciar suas finanças</p>
       </div>
       
-      <FinancialAssistantChat />
+      <GlobalChat />
     </div>
   );
 }

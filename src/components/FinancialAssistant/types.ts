@@ -9,14 +9,16 @@ export interface ChatMessage {
 }
 
 export interface PendingTransaction {
-  type: 'income' | 'expense' | 'transfer';
+  type: 'income' | 'expense' | 'transfer' | 'credit_card';
   amount: number;
   category?: string;
   description: string;
-  account_id: string;
+  account_id?: string;
   account_name?: string;
   transfer_to_account_id?: string;
   transfer_to_account_name?: string;
+  card_id?: string;
+  card_name?: string;
   date: string;
   installments?: number;
   recurrence?: 'none' | 'weekly' | 'monthly' | 'yearly';

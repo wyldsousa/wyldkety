@@ -1,4 +1,5 @@
 export { FinancialAssistantChat } from './FinancialAssistantChat';
+export { GlobalChat } from './GlobalChat';
 export { TransactionPreview } from './TransactionPreview';
 export { ChatMessageComponent } from './ChatMessage';
 export { QuickActions } from './QuickActions';
