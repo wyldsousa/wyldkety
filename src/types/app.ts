@@ -1,6 +1,7 @@
 export interface MonthlyReport {
   id: string;
   user_id: string;
+  group_id?: string | null;
   month: number;
   year: number;
   total_income: number;
@@ -19,6 +20,7 @@ export interface MonthlyReport {
 export interface Category {
   id: string;
   user_id: string;
+  group_id?: string | null;
   name: string;
   type: 'income' | 'expense';
   color: string | null;
@@ -31,12 +33,18 @@ export interface Category {
 export interface Reminder {
   id: string;
   user_id: string;
+  group_id?: string | null;
+  created_by_user_id?: string | null;
   title: string;
   description: string | null;
   amount: number | null;
   due_date: string | null;
   is_completed: boolean;
   completed_at: string | null;
+  is_recurring: boolean;
+  recurrence_type: 'none' | 'weekly' | 'monthly' | 'yearly';
+  recurrence_day: number | null;
+  parent_reminder_id: string | null;
   created_at: string;
   updated_at: string;
 }

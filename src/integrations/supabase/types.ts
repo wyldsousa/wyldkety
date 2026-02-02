@@ -21,6 +21,8 @@ export type Database = {
           bank_name: string
           color: string | null
           created_at: string
+          created_by_user_id: string | null
+          group_id: string | null
           icon: string | null
           id: string
           image_url: string | null
@@ -35,6 +37,8 @@ export type Database = {
           bank_name: string
           color?: string | null
           created_at?: string
+          created_by_user_id?: string | null
+          group_id?: string | null
           icon?: string | null
           id?: string
           image_url?: string | null
@@ -49,6 +53,8 @@ export type Database = {
           bank_name?: string
           color?: string | null
           created_at?: string
+          created_by_user_id?: string | null
+          group_id?: string | null
           icon?: string | null
           id?: string
           image_url?: string | null
@@ -57,12 +63,21 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "bank_accounts_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "financial_groups"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       categories: {
         Row: {
           color: string | null
           created_at: string
+          group_id: string | null
           icon: string | null
           id: string
           is_default: boolean | null
@@ -74,6 +89,7 @@ export type Database = {
         Insert: {
           color?: string | null
           created_at?: string
+          group_id?: string | null
           icon?: string | null
           id?: string
           is_default?: boolean | null
@@ -85,6 +101,7 @@ export type Database = {
         Update: {
           color?: string | null
           created_at?: string
+          group_id?: string | null
           icon?: string | null
           id?: string
           is_default?: boolean | null
@@ -93,12 +110,21 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "categories_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "financial_groups"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       credit_card_invoices: {
         Row: {
           card_id: string
           created_at: string
+          group_id: string | null
           id: string
           minimum_amount: number
           month: number
@@ -114,6 +140,7 @@ export type Database = {
         Insert: {
           card_id: string
           created_at?: string
+          group_id?: string | null
           id?: string
           minimum_amount?: number
           month: number
@@ -129,6 +156,7 @@ export type Database = {
         Update: {
           card_id?: string
           created_at?: string
+          group_id?: string | null
           id?: string
           minimum_amount?: number
           month?: number
@@ -150,6 +178,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "credit_card_invoices_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "financial_groups"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "credit_card_invoices_payment_account_id_fkey"
             columns: ["payment_account_id"]
             isOneToOne: false
@@ -164,8 +199,10 @@ export type Database = {
           card_id: string
           category: string
           created_at: string
+          created_by_user_id: string | null
           date: string
           description: string | null
+          group_id: string | null
           id: string
           installment_number: number | null
           invoice_id: string
@@ -179,8 +216,10 @@ export type Database = {
           card_id: string
           category: string
           created_at?: string
+          created_by_user_id?: string | null
           date?: string
           description?: string | null
+          group_id?: string | null
           id?: string
           installment_number?: number | null
           invoice_id: string
@@ -194,8 +233,10 @@ export type Database = {
           card_id?: string
           category?: string
           created_at?: string
+          created_by_user_id?: string | null
           date?: string
           description?: string | null
+          group_id?: string | null
           id?: string
           installment_number?: number | null
           invoice_id?: string
@@ -213,6 +254,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "credit_card_transactions_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "financial_groups"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "credit_card_transactions_invoice_id_fkey"
             columns: ["invoice_id"]
             isOneToOne: false
@@ -227,8 +275,10 @@ export type Database = {
           closing_day: number
           color: string | null
           created_at: string
+          created_by_user_id: string | null
           credit_limit: number
           due_day: number
+          group_id: string | null
           id: string
           image_url: string | null
           interest_rate: number | null
@@ -241,8 +291,10 @@ export type Database = {
           closing_day?: number
           color?: string | null
           created_at?: string
+          created_by_user_id?: string | null
           credit_limit?: number
           due_day?: number
+          group_id?: string | null
           id?: string
           image_url?: string | null
           interest_rate?: number | null
@@ -255,8 +307,10 @@ export type Database = {
           closing_day?: number
           color?: string | null
           created_at?: string
+          created_by_user_id?: string | null
           credit_limit?: number
           due_day?: number
+          group_id?: string | null
           id?: string
           image_url?: string | null
           interest_rate?: number | null
@@ -264,12 +318,160 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: "credit_cards_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "financial_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financial_groups: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
         Relationships: []
+      }
+      group_invites: {
+        Row: {
+          can_manage_accounts: boolean
+          can_manage_cards: boolean
+          can_manage_categories: boolean
+          can_manage_reminders: boolean
+          can_manage_transactions: boolean
+          can_view_reports: boolean
+          created_at: string
+          expires_at: string
+          group_id: string
+          id: string
+          invited_by: string
+          invited_email: string
+          role: Database["public"]["Enums"]["group_role"]
+          status: string
+        }
+        Insert: {
+          can_manage_accounts?: boolean
+          can_manage_cards?: boolean
+          can_manage_categories?: boolean
+          can_manage_reminders?: boolean
+          can_manage_transactions?: boolean
+          can_view_reports?: boolean
+          created_at?: string
+          expires_at?: string
+          group_id: string
+          id?: string
+          invited_by: string
+          invited_email: string
+          role?: Database["public"]["Enums"]["group_role"]
+          status?: string
+        }
+        Update: {
+          can_manage_accounts?: boolean
+          can_manage_cards?: boolean
+          can_manage_categories?: boolean
+          can_manage_reminders?: boolean
+          can_manage_transactions?: boolean
+          can_view_reports?: boolean
+          created_at?: string
+          expires_at?: string
+          group_id?: string
+          id?: string
+          invited_by?: string
+          invited_email?: string
+          role?: Database["public"]["Enums"]["group_role"]
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_invites_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "financial_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_members: {
+        Row: {
+          can_manage_accounts: boolean
+          can_manage_cards: boolean
+          can_manage_categories: boolean
+          can_manage_reminders: boolean
+          can_manage_transactions: boolean
+          can_view_reports: boolean
+          group_id: string
+          id: string
+          joined_at: string
+          role: Database["public"]["Enums"]["group_role"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          can_manage_accounts?: boolean
+          can_manage_cards?: boolean
+          can_manage_categories?: boolean
+          can_manage_reminders?: boolean
+          can_manage_transactions?: boolean
+          can_view_reports?: boolean
+          group_id: string
+          id?: string
+          joined_at?: string
+          role?: Database["public"]["Enums"]["group_role"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          can_manage_accounts?: boolean
+          can_manage_cards?: boolean
+          can_manage_categories?: boolean
+          can_manage_reminders?: boolean
+          can_manage_transactions?: boolean
+          can_view_reports?: boolean
+          group_id?: string
+          id?: string
+          joined_at?: string
+          role?: Database["public"]["Enums"]["group_role"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "financial_groups"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       monthly_reports: {
         Row: {
           balance: number
           generated_at: string
+          group_id: string | null
           id: string
           month: number
           report_data: Json | null
@@ -281,6 +483,7 @@ export type Database = {
         Insert: {
           balance?: number
           generated_at?: string
+          group_id?: string | null
           id?: string
           month: number
           report_data?: Json | null
@@ -292,6 +495,7 @@ export type Database = {
         Update: {
           balance?: number
           generated_at?: string
+          group_id?: string | null
           id?: string
           month?: number
           report_data?: Json | null
@@ -300,33 +504,56 @@ export type Database = {
           user_id?: string
           year?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "monthly_reports_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "financial_groups"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
           avatar_url: string | null
           created_at: string
+          email_verification_sent_at: string | null
+          email_verification_token: string | null
+          email_verified: boolean
           full_name: string | null
           id: string
           phone: string | null
+          phone_verification_code: string | null
+          phone_verified: boolean
           updated_at: string
           user_id: string
         }
         Insert: {
           avatar_url?: string | null
           created_at?: string
+          email_verification_sent_at?: string | null
+          email_verification_token?: string | null
+          email_verified?: boolean
           full_name?: string | null
           id?: string
           phone?: string | null
+          phone_verification_code?: string | null
+          phone_verified?: boolean
           updated_at?: string
           user_id: string
         }
         Update: {
           avatar_url?: string | null
           created_at?: string
+          email_verification_sent_at?: string | null
+          email_verification_token?: string | null
+          email_verified?: boolean
           full_name?: string | null
           id?: string
           phone?: string | null
+          phone_verification_code?: string | null
+          phone_verified?: boolean
           updated_at?: string
           user_id?: string
         }
@@ -337,8 +564,10 @@ export type Database = {
           amount: number | null
           completed_at: string | null
           created_at: string
+          created_by_user_id: string | null
           description: string | null
           due_date: string | null
+          group_id: string | null
           id: string
           is_completed: boolean
           is_recurring: boolean | null
@@ -353,8 +582,10 @@ export type Database = {
           amount?: number | null
           completed_at?: string | null
           created_at?: string
+          created_by_user_id?: string | null
           description?: string | null
           due_date?: string | null
+          group_id?: string | null
           id?: string
           is_completed?: boolean
           is_recurring?: boolean | null
@@ -369,8 +600,10 @@ export type Database = {
           amount?: number | null
           completed_at?: string | null
           created_at?: string
+          created_by_user_id?: string | null
           description?: string | null
           due_date?: string | null
+          group_id?: string | null
           id?: string
           is_completed?: boolean
           is_recurring?: boolean | null
@@ -382,6 +615,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "reminders_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "financial_groups"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "reminders_parent_reminder_id_fkey"
             columns: ["parent_reminder_id"]
@@ -397,8 +637,10 @@ export type Database = {
           amount: number
           category: string
           created_at: string
+          created_by_user_id: string | null
           date: string
           description: string | null
+          group_id: string | null
           id: string
           transfer_to_account_id: string | null
           type: string
@@ -410,8 +652,10 @@ export type Database = {
           amount: number
           category: string
           created_at?: string
+          created_by_user_id?: string | null
           date?: string
           description?: string | null
+          group_id?: string | null
           id?: string
           transfer_to_account_id?: string | null
           type: string
@@ -423,8 +667,10 @@ export type Database = {
           amount?: number
           category?: string
           created_at?: string
+          created_by_user_id?: string | null
           date?: string
           description?: string | null
+          group_id?: string | null
           id?: string
           transfer_to_account_id?: string | null
           type?: string
@@ -437,6 +683,13 @@ export type Database = {
             columns: ["account_id"]
             isOneToOne: false
             referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "financial_groups"
             referencedColumns: ["id"]
           },
           {
@@ -489,10 +742,21 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_group_permission: {
+        Args: { _group_id: string; _permission: string; _user_id: string }
+        Returns: boolean
+      }
+      is_group_admin: {
+        Args: { _group_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_group_member: {
+        Args: { _group_id: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      group_role: "admin" | "member"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -619,6 +883,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      group_role: ["admin", "member"],
+    },
   },
 } as const
