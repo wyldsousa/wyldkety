@@ -7,14 +7,16 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
+import { Progress } from '@/components/ui/progress';
 import { 
   User, Mail, Phone, Save, Camera, Loader2, 
   CheckCircle2, XCircle, Send, Users, UserPlus, 
-  Crown, Shield, Trash2, Settings, Plus
+  Crown, Shield, Trash2, Settings, Plus, Sparkles, Clock
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
 import { useFinancialGroups, useGroupMembers } from '@/hooks/useFinancialGroups';
+import { useSubscription } from '@/hooks/useSubscription';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { 
@@ -43,6 +45,12 @@ export default function Profile() {
     updateMemberPermissions,
     isGroupAdmin 
   } = useFinancialGroups();
+  const {
+    subscription,
+    isPremiumActive,
+    getPremiumDaysRemaining,
+    activatePremium
+  } = useSubscription();
   
   const [isEditing, setIsEditing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -57,6 +65,7 @@ export default function Profile() {
 
   // Get members for selected group
   const { data: groupMembers } = useGroupMembers(selectedGroupId);
+
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -439,6 +448,94 @@ export default function Profile() {
 
               <Button onClick={() => setIsEditing(true)} className="w-full">
                 Editar Perfil
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Subscription Status */}
+      <Card className="shadow-soft border-0">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5" />
+            Assinatura
+          </CardTitle>
+          <CardDescription>
+            Status do seu plano no Assistente Financeiro IA
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isPremiumActive() ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 rounded-lg bg-gradient-to-br from-yellow-500/10 to-amber-500/10 border border-yellow-500/20">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-yellow-500 to-amber-500 rounded-full flex items-center justify-center">
+                    <Crown className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Premium VIP</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {getPremiumDaysRemaining()} dias restantes
+                    </p>
+                  </div>
+                </div>
+                <Badge className="bg-gradient-to-r from-yellow-500 to-amber-500 text-white border-0">
+                  Ativo
+                </Badge>
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Tempo restante</span>
+                  <span className="font-medium">{getPremiumDaysRemaining()} de 30 dias</span>
+                </div>
+                <Progress value={(getPremiumDaysRemaining() / 30) * 100} className="h-2" />
+              </div>
+              <ul className="space-y-2 text-sm">
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-green-500" />
+                  Acesso ilimitado ao chat IA
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-green-500" />
+                  Sem anúncios
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-green-500" />
+                  Suporte prioritário
+                </li>
+              </ul>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center">
+                    <Clock className="w-5 h-5 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Plano Gratuito</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Acesso via anúncios
+                    </p>
+                  </div>
+                </div>
+                <Badge variant="secondary">Básico</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Com o plano gratuito, você precisa assistir um anúncio para liberar o acesso ao Assistente Financeiro IA por 1 hora.
+              </p>
+              <Button 
+                className="w-full bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-600 hover:to-amber-600 text-white"
+                onClick={() => activatePremium.mutate()}
+                disabled={activatePremium.isPending}
+              >
+                {activatePremium.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : (
+                  <Crown className="w-4 h-4 mr-2" />
+                )}
+                Ativar Premium - R$ 10,00/mês
               </Button>
             </div>
           )}

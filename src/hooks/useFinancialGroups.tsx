@@ -59,12 +59,12 @@ export function useFinancialGroups() {
     enabled: !!user?.email,
   });
 
-  // Create a new group
+  // Create a new group (trigger automatically adds creator as admin)
   const createGroup = useMutation({
     mutationFn: async ({ name, description }: { name: string; description?: string }) => {
       if (!user) throw new Error('Not authenticated');
 
-      // Create the group
+      // Create the group - trigger handles adding creator as admin
       const { data: group, error: groupError } = await supabase
         .from('financial_groups')
         .insert({
@@ -76,18 +76,6 @@ export function useFinancialGroups() {
         .single();
 
       if (groupError) throw groupError;
-
-      // Add creator as admin with full permissions
-      const { error: memberError } = await supabase
-        .from('group_members')
-        .insert({
-          group_id: group.id,
-          user_id: user.id,
-          role: 'admin',
-          ...FULL_PERMISSIONS,
-        });
-
-      if (memberError) throw memberError;
 
       return group;
     },
