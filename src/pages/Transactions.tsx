@@ -67,8 +67,8 @@ export default function Transactions() {
       // Add XP for creating transaction
       try {
         await incrementTransactionCount.mutateAsync();
-      } catch (e) {
-        console.log('XP update skipped');
+      } catch {
+        // XP update silently skipped
       }
     }
     setOpen(false);

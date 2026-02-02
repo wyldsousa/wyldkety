@@ -133,7 +133,7 @@ export default function Auth() {
             <Tabs defaultValue="signin" className="w-full">
               <TabsList className="grid w-full grid-cols-2 mb-6">
                 <TabsTrigger value="signin">Entrar</TabsTrigger>
-                <TabsTrigger value="signup">Cadastrar</TabsTrigger>
+                <TabsTrigger value="signup" onClick={resetPasswordFields}>Cadastrar</TabsTrigger>
               </TabsList>
 
               <TabsContent value="signin">
@@ -281,6 +281,12 @@ export default function Auth() {
             </Tabs>
           </CardContent>
         </Card>
+
+        <div className="text-center mt-4">
+          <Link to="/privacy" className="text-sm text-muted-foreground hover:text-foreground hover:underline">
+            Política de Privacidade
+          </Link>
+        </div>
       </div>
     </div>
   );

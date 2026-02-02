@@ -19,6 +19,7 @@ import Profile from "./pages/Profile";
 import CreditCards from "./pages/CreditCards";
 import Assistant from "./pages/Assistant";
 import NotFound from "./pages/NotFound";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 
 const queryClient = new QueryClient();
 
@@ -114,6 +115,7 @@ const App = () => (
                   </AppLayout>
                 </ProtectedRoute>
               } />
+              <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
