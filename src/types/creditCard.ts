@@ -21,7 +21,7 @@ export interface CreditCardInvoice {
   year: number;
   total_amount: number;
   minimum_amount: number;
-  status: 'open' | 'closed' | 'paid' | 'overdue';
+  status: 'open' | 'closed' | 'paid' | 'overdue' | 'partial';
   paid_at: string | null;
   paid_amount: number | null;
   payment_account_id: string | null;

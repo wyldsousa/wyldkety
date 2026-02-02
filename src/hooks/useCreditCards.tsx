@@ -84,20 +84,10 @@ export function useCreditCards() {
     },
   });
 
-  // Calculate used limit and available limit for each card
-  const cardsWithLimits = cards.map(card => {
-    // This will be calculated based on open invoices
-    return {
-      ...card,
-      used_limit: 0, // Will be calculated from invoices
-      available_limit: card.credit_limit
-    };
-  });
-
   const totalLimit = cards.reduce((sum, c) => sum + Number(c.credit_limit), 0);
 
   return {
-    cards: cardsWithLimits,
+    cards,
     isLoading,
     totalLimit,
     createCard,
@@ -136,7 +126,6 @@ export function useCreditCardInvoices(cardId?: string) {
     mutationFn: async ({ cardId, month, year }: { cardId: string; month: number; year: number }) => {
       if (!user) throw new Error('Not authenticated');
       
-      // Try to find existing invoice
       const { data: existing } = await supabase
         .from('credit_card_invoices')
         .select('*')
@@ -147,7 +136,6 @@ export function useCreditCardInvoices(cardId?: string) {
       
       if (existing) return existing;
       
-      // Create new invoice
       const { data, error } = await supabase
         .from('credit_card_invoices')
         .insert({
@@ -191,7 +179,7 @@ export function useCreditCardInvoices(cardId?: string) {
     mutationFn: async ({ invoiceId, accountId, amount }: { invoiceId: string; accountId: string; amount: number }) => {
       if (!user) throw new Error('Not authenticated');
       
-      // Update invoice status
+      // Update invoice status to paid
       await supabase
         .from('credit_card_invoices')
         .update({
@@ -240,11 +228,80 @@ export function useCreditCardInvoices(cardId?: string) {
     },
   });
 
-  // Separate invoices by status
+  const partialPayInvoice = useMutation({
+    mutationFn: async ({ invoiceId, accountId, amount }: { invoiceId: string; accountId: string; amount: number }) => {
+      if (!user) throw new Error('Not authenticated');
+      
+      // Get current invoice
+      const { data: invoice } = await supabase
+        .from('credit_card_invoices')
+        .select('*')
+        .eq('id', invoiceId)
+        .single();
+      
+      if (!invoice) throw new Error('Fatura não encontrada');
+      
+      const currentPaid = Number(invoice.paid_amount) || 0;
+      const newPaid = currentPaid + amount;
+      const total = Number(invoice.total_amount);
+      
+      // Determine new status
+      const newStatus = newPaid >= total ? 'paid' : 'partial';
+      
+      // Update invoice
+      await supabase
+        .from('credit_card_invoices')
+        .update({
+          status: newStatus,
+          paid_amount: newPaid,
+          paid_at: newStatus === 'paid' ? new Date().toISOString() : invoice.paid_at,
+          payment_account_id: accountId
+        })
+        .eq('id', invoiceId);
+      
+      // Create transaction
+      await supabase
+        .from('transactions')
+        .insert({
+          user_id: user.id,
+          account_id: accountId,
+          type: 'expense',
+          category: 'Cartão de Crédito',
+          description: `Pagamento parcial de fatura`,
+          amount,
+          date: new Date().toISOString().split('T')[0]
+        });
+      
+      // Update account balance
+      const { data: account } = await supabase
+        .from('bank_accounts')
+        .select('balance')
+        .eq('id', accountId)
+        .single();
+      
+      if (account) {
+        await supabase
+          .from('bank_accounts')
+          .update({ balance: Number(account.balance) - amount })
+          .eq('id', accountId);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['credit_card_invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['bank_accounts'] });
+      toast.success('Pagamento parcial registrado!');
+    },
+    onError: (error) => {
+      toast.error('Erro ao pagar fatura: ' + error.message);
+    },
+  });
+
   const openInvoices = invoices.filter(i => i.status === 'open');
   const closedInvoices = invoices.filter(i => i.status === 'closed');
   const paidInvoices = invoices.filter(i => i.status === 'paid');
   const overdueInvoices = invoices.filter(i => i.status === 'overdue');
+  const partialInvoices = invoices.filter(i => i.status === 'partial');
 
   return {
     invoices,
@@ -252,10 +309,12 @@ export function useCreditCardInvoices(cardId?: string) {
     closedInvoices,
     paidInvoices,
     overdueInvoices,
+    partialInvoices,
     isLoading,
     getOrCreateInvoice,
     updateInvoice,
     payInvoice,
+    partialPayInvoice,
   };
 }
 
@@ -322,6 +381,94 @@ export function useCreditCardTransactions(invoiceId?: string) {
     },
   });
 
+  const prepayInstallments = useMutation({
+    mutationFn: async ({ 
+      transaction, 
+      accountId, 
+      installmentsToPay 
+    }: { 
+      transaction: CreditCardTransaction; 
+      accountId: string; 
+      installmentsToPay: number 
+    }) => {
+      if (!user) throw new Error('Not authenticated');
+      
+      const amountToPay = installmentsToPay * Number(transaction.amount);
+      
+      // Find and delete future installment transactions
+      const { data: futureTransactions } = await supabase
+        .from('credit_card_transactions')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('card_id', transaction.card_id)
+        .eq('parent_transaction_id', transaction.parent_transaction_id || transaction.id)
+        .gt('installment_number', transaction.installment_number)
+        .order('installment_number', { ascending: true })
+        .limit(installmentsToPay);
+      
+      if (futureTransactions && futureTransactions.length > 0) {
+        // Delete the prepaid installments
+        for (const ft of futureTransactions) {
+          // Update invoice total
+          const { data: invoice } = await supabase
+            .from('credit_card_invoices')
+            .select('total_amount')
+            .eq('id', ft.invoice_id)
+            .single();
+          
+          if (invoice) {
+            await supabase
+              .from('credit_card_invoices')
+              .update({ total_amount: Math.max(0, Number(invoice.total_amount) - Number(ft.amount)) })
+              .eq('id', ft.invoice_id);
+          }
+          
+          await supabase
+            .from('credit_card_transactions')
+            .delete()
+            .eq('id', ft.id);
+        }
+      }
+      
+      // Create payment transaction in bank account
+      await supabase
+        .from('transactions')
+        .insert({
+          user_id: user.id,
+          account_id: accountId,
+          type: 'expense',
+          category: 'Cartão de Crédito',
+          description: `Antecipação de ${installmentsToPay} parcela(s) - ${transaction.description}`,
+          amount: amountToPay,
+          date: new Date().toISOString().split('T')[0]
+        });
+      
+      // Update account balance
+      const { data: account } = await supabase
+        .from('bank_accounts')
+        .select('balance')
+        .eq('id', accountId)
+        .single();
+      
+      if (account) {
+        await supabase
+          .from('bank_accounts')
+          .update({ balance: Number(account.balance) - amountToPay })
+          .eq('id', accountId);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['credit_card_transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['credit_card_invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['bank_accounts'] });
+      toast.success('Parcelas antecipadas com sucesso!');
+    },
+    onError: (error) => {
+      toast.error('Erro ao antecipar parcelas: ' + error.message);
+    },
+  });
+
   const deleteTransaction = useMutation({
     mutationFn: async ({ id, invoiceId, amount }: { id: string; invoiceId: string; amount: number }) => {
       const { error } = await supabase
@@ -331,7 +478,6 @@ export function useCreditCardTransactions(invoiceId?: string) {
       
       if (error) throw error;
       
-      // Update invoice total
       const { data: invoice } = await supabase
         .from('credit_card_invoices')
         .select('total_amount')
@@ -359,6 +505,7 @@ export function useCreditCardTransactions(invoiceId?: string) {
     transactions,
     isLoading,
     createTransaction,
+    prepayInstallments,
     deleteTransaction,
   };
 }

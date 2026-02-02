@@ -33,6 +33,7 @@ export default function Investments() {
       color: formData.get('color') as string || BANK_COLORS[3],
       icon: 'trending-up',
       is_investment: true,
+      image_url: null,
     };
 
     if (editingAccount) {

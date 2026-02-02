@@ -8,6 +8,7 @@ export interface BankAccount {
   color: string;
   icon: string;
   is_investment: boolean;
+  image_url: string | null;
   created_at: string;
   updated_at: string;
 }

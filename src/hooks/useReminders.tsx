@@ -12,6 +12,10 @@ export interface Reminder {
   due_date: string | null;
   is_completed: boolean;
   completed_at: string | null;
+  is_recurring: boolean;
+  recurrence_type: 'none' | 'weekly' | 'monthly' | 'yearly';
+  recurrence_day: number | null;
+  parent_reminder_id: string | null;
   created_at: string;
   updated_at: string;
 }
