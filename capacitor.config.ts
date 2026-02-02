@@ -1,12 +1,22 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'app.lovable.866815c165254828890411ef6ac50d3a',
-  appName: 'wyldkety',
+  appId: 'app.financeapp.wyldkety',
+  appName: 'FinanceApp',
   webDir: 'dist',
   server: {
-    url: 'https://866815c1-6525-4828-8904-11ef6ac50d3a.lovableproject.com?forceHideBadge=true',
-    cleartext: true
+    // Remove server URL for production - app will use local assets
+    androidScheme: 'https'
+  },
+  plugins: {
+    SplashScreen: {
+      launchShowDuration: 2000,
+      backgroundColor: '#10B981',
+      showSpinner: false,
+      androidSpinnerStyle: 'small',
+      splashFullScreen: true,
+      splashImmersive: true
+    }
   }
 };
 

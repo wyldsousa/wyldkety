@@ -173,11 +173,22 @@ export default function Profile() {
     
     setIsVerifyingEmail(true);
     try {
-      // For now, since we don't have a proper email service set up,
-      // we'll just show a message explaining the verification
-      toast.info('Para verificar seu email, faça logout e login novamente. Um link de verificação será enviado.');
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: user.email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/`,
+        }
+      });
+      
+      if (error) throw error;
+      toast.success('Email de verificação enviado! Verifique sua caixa de entrada.');
     } catch (error: any) {
-      toast.error('Erro ao enviar verificação: ' + error.message);
+      if (error.message?.includes('rate')) {
+        toast.error('Aguarde alguns minutos antes de solicitar outro email.');
+      } else {
+        toast.error('Erro ao enviar verificação: ' + error.message);
+      }
     } finally {
       setIsVerifyingEmail(false);
     }

@@ -377,8 +377,8 @@ export function AssistantChatProvider({ children }: { children: ReactNode }) {
       // Award XP
       try {
         await incrementTransactionCount.mutateAsync();
-      } catch (e) {
-        console.log('XP update skipped');
+      } catch {
+        // XP update silently skipped
       }
 
       // Invalidate queries
