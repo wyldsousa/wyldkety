@@ -23,6 +23,7 @@ export type Database = {
           created_at: string
           icon: string | null
           id: string
+          image_url: string | null
           is_investment: boolean | null
           name: string
           updated_at: string
@@ -36,6 +37,7 @@ export type Database = {
           created_at?: string
           icon?: string | null
           id?: string
+          image_url?: string | null
           is_investment?: boolean | null
           name: string
           updated_at?: string
@@ -49,6 +51,7 @@ export type Database = {
           created_at?: string
           icon?: string | null
           id?: string
+          image_url?: string | null
           is_investment?: boolean | null
           name?: string
           updated_at?: string
@@ -338,6 +341,10 @@ export type Database = {
           due_date: string | null
           id: string
           is_completed: boolean
+          is_recurring: boolean | null
+          parent_reminder_id: string | null
+          recurrence_day: number | null
+          recurrence_type: string | null
           title: string
           updated_at: string
           user_id: string
@@ -350,6 +357,10 @@ export type Database = {
           due_date?: string | null
           id?: string
           is_completed?: boolean
+          is_recurring?: boolean | null
+          parent_reminder_id?: string | null
+          recurrence_day?: number | null
+          recurrence_type?: string | null
           title: string
           updated_at?: string
           user_id: string
@@ -362,11 +373,23 @@ export type Database = {
           due_date?: string | null
           id?: string
           is_completed?: boolean
+          is_recurring?: boolean | null
+          parent_reminder_id?: string | null
+          recurrence_day?: number | null
+          recurrence_type?: string | null
           title?: string
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "reminders_parent_reminder_id_fkey"
+            columns: ["parent_reminder_id"]
+            isOneToOne: false
+            referencedRelation: "reminders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       transactions: {
         Row: {

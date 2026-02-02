@@ -1,26 +1,83 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Plus, Building2, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Building2, Pencil, Trash2, Camera, X, ImageIcon } from 'lucide-react';
 import { useBankAccounts } from '@/hooks/useBankAccounts';
 import { formatCurrency } from '@/lib/format';
 import { BANK_COLORS } from '@/types/finance';
 import { getBankInfo } from '@/lib/bankLogos';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 
 export default function Accounts() {
   const { regularAccounts, isLoading, createAccount, updateAccount, deleteAccount } = useBankAccounts();
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<any>(null);
+  const [uploading, setUploading] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageUpload = async (file: File, accountId?: string) => {
+    if (!user) return null;
+    
+    setUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}/bank-${accountId || 'new'}-${Date.now()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fileName);
+
+      return publicUrl;
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      toast.error('Erro ao fazer upload da imagem');
+      return null;
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPreviewImage(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const accountType = (formData.get('account_type') as string) || 'checking';
+    
+    let imageUrl = editingAccount?.image_url || null;
+    
+    // Upload new image if selected
+    const fileInput = fileInputRef.current;
+    if (fileInput?.files?.[0]) {
+      const uploadedUrl = await handleImageUpload(fileInput.files[0], editingAccount?.id);
+      if (uploadedUrl) imageUrl = uploadedUrl;
+    }
+
     const data = {
       name: formData.get('name') as string,
       bank_name: formData.get('bank_name') as string,
@@ -29,6 +86,7 @@ export default function Accounts() {
       color: formData.get('color') as string || BANK_COLORS[0],
       icon: 'building-2',
       is_investment: false,
+      image_url: imageUrl,
     };
 
     if (editingAccount) {
@@ -38,15 +96,33 @@ export default function Accounts() {
     }
     setOpen(false);
     setEditingAccount(null);
+    setPreviewImage(null);
   };
 
   const openEditDialog = (account: any) => {
     setEditingAccount(account);
+    setPreviewImage(account.image_url);
     setOpen(true);
   };
 
   const handleDelete = async (id: string) => {
     await deleteAccount.mutateAsync(id);
+  };
+
+  const handleRemoveImage = async (account: any) => {
+    await updateAccount.mutateAsync({ id: account.id, image_url: null });
+    if (editingAccount?.id === account.id) {
+      setPreviewImage(null);
+      setEditingAccount({ ...editingAccount, image_url: null });
+    }
+    toast.success('Imagem removida!');
+  };
+
+  const clearPreviewImage = () => {
+    setPreviewImage(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   return (
@@ -56,18 +132,69 @@ export default function Accounts() {
           <h1 className="text-2xl font-bold text-foreground">Contas Bancárias</h1>
           <p className="text-muted-foreground">Gerencie suas contas</p>
         </div>
-        <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setEditingAccount(null); }}>
+        <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setEditingAccount(null); setPreviewImage(null); } }}>
           <DialogTrigger asChild>
             <Button className="gap-2">
               <Plus className="w-4 h-4" />
               Nova Conta
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>{editingAccount ? 'Editar Conta' : 'Nova Conta'}</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Image Upload Section */}
+              <div className="space-y-2">
+                <Label>Imagem Personalizada</Label>
+                <div className="flex items-center gap-4">
+                  <div className="relative">
+                    {previewImage ? (
+                      <div className="w-16 h-16 rounded-xl overflow-hidden bg-muted">
+                        <img 
+                          src={previewImage} 
+                          alt="Preview" 
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={clearPreviewImage}
+                          className="absolute -top-1 -right-1 p-1 bg-destructive text-destructive-foreground rounded-full"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="w-16 h-16 rounded-xl bg-muted flex items-center justify-center">
+                        <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploading}
+                    >
+                      <Camera className="w-4 h-4 mr-2" />
+                      {previewImage ? 'Trocar' : 'Adicionar'} Imagem
+                    </Button>
+                    <p className="text-xs text-muted-foreground">
+                      Opcional - substitui o logo padrão
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="name">Nome da Conta</Label>
                 <Input 
@@ -131,8 +258,8 @@ export default function Accounts() {
                   ))}
                 </div>
               </div>
-              <Button type="submit" className="w-full" disabled={createAccount.isPending || updateAccount.isPending}>
-                {editingAccount ? 'Salvar Alterações' : 'Criar Conta'}
+              <Button type="submit" className="w-full" disabled={createAccount.isPending || updateAccount.isPending || uploading}>
+                {uploading ? 'Enviando imagem...' : editingAccount ? 'Salvar Alterações' : 'Criar Conta'}
               </Button>
             </form>
           </DialogContent>
@@ -169,7 +296,15 @@ export default function Accounts() {
               <CardContent className="p-6">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    {(() => {
+                    {account.image_url ? (
+                      <div className="w-12 h-12 rounded-xl overflow-hidden bg-white shadow-sm">
+                        <img 
+                          src={account.image_url} 
+                          alt={account.bank_name}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ) : (() => {
                       const bankInfo = getBankInfo(account.bank_name);
                       return bankInfo.logo ? (
                         <div 
@@ -232,6 +367,17 @@ export default function Accounts() {
                     {formatCurrency(Number(account.balance))}
                   </p>
                 </div>
+                {account.image_url && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="mt-2 text-xs text-muted-foreground"
+                    onClick={() => handleRemoveImage(account)}
+                  >
+                    <X className="w-3 h-3 mr-1" />
+                    Remover imagem
+                  </Button>
+                )}
               </CardContent>
             </Card>
           ))}

@@ -79,6 +79,14 @@ serve(async (req) => {
       return await handleDeleteTransaction(supabase, transactionData.id, userId, corsHeaders);
     }
 
+    if (action === 'pay_invoice' && transactionData && userId) {
+      return await handlePayInvoice(supabase, transactionData, userId, corsHeaders);
+    }
+
+    if (action === 'prepay_installments' && transactionData && userId) {
+      return await handlePrepayInstallments(supabase, transactionData, userId, corsHeaders);
+    }
+
     if (action === 'query' && userId) {
       return await handleQuery(supabase, LOVABLE_API_KEY, message, userId, accounts, conversationHistory, corsHeaders);
     }
@@ -97,12 +105,16 @@ SUAS CAPACIDADES:
 8. Entender datas relativas (hoje, ontem, semana passada, dia X)
 9. Responder perguntas sobre finanças
 10. Fornecer insights financeiros
+11. Pagar faturas de cartão de crédito
+12. Pagar parcialmente faturas
+13. Antecipar parcelas de compras parceladas
 
 REGRAS IMPORTANTES:
 - SEMPRE seja amigável e conversacional
 - Para transações, SEMPRE use a função apropriada
 - Para perguntas/consultas, use a função query_finances
 - Detecte o INTENT do usuário corretamente
+- Para pagar fatura, SEMPRE pergunte qual conta usar se não especificado
 
 CONTEXTO DO USUÁRIO:
 Contas disponíveis:
@@ -113,6 +125,11 @@ ${cards?.map((c: any) => `- ${c.name} (${c.bank_name}): ID "${c.id}"`).join('\n'
 
 Categorias de receita: ${categories?.income?.join(', ') || 'Salário, Freelance, Investimentos, Outros'}
 Categorias de despesa: ${categories?.expense?.join(', ') || 'Alimentação, Transporte, Moradia, Contas, Lazer, Saúde, Educação, Outros'}
+
+DETECÇÃO DE PAGAMENTO DE FATURA:
+- "pagar fatura", "paguei a fatura", "quitar fatura" → pay_invoice
+- "pagar parte da fatura", "pagar parcial" → pay_invoice_partial
+- "antecipar parcela", "quitar compra" → prepay_installments
 
 DETECÇÃO DE CARTÃO DE CRÉDITO:
 - "no crédito", "no cartão", "cartão de crédito", "crédito" → credit_card
@@ -381,6 +398,74 @@ DATAS:
                   }
                 },
                 required: ["query_type", "ai_response"],
+                additionalProperties: false
+              }
+            }
+          },
+          {
+            type: "function",
+            function: {
+              name: "pay_invoice",
+              description: "Paga uma fatura de cartão de crédito (total ou parcialmente)",
+              parameters: {
+                type: "object",
+                properties: {
+                  card_id: {
+                    type: "string",
+                    description: "ID do cartão de crédito"
+                  },
+                  account_id: {
+                    type: "string",
+                    description: "ID da conta para pagamento"
+                  },
+                  amount: {
+                    type: "number",
+                    description: "Valor a pagar (se parcial)"
+                  },
+                  is_partial: {
+                    type: "boolean",
+                    description: "Se é pagamento parcial"
+                  },
+                  ai_response: {
+                    type: "string",
+                    description: "Resposta amigável da IA"
+                  }
+                },
+                required: ["card_id", "ai_response"],
+                additionalProperties: false
+              }
+            }
+          },
+          {
+            type: "function",
+            function: {
+              name: "prepay_installments",
+              description: "Antecipa parcelas de uma compra parcelada no cartão",
+              parameters: {
+                type: "object",
+                properties: {
+                  card_id: {
+                    type: "string",
+                    description: "ID do cartão de crédito"
+                  },
+                  account_id: {
+                    type: "string",
+                    description: "ID da conta para pagamento"
+                  },
+                  installments_to_pay: {
+                    type: "number",
+                    description: "Quantidade de parcelas a antecipar"
+                  },
+                  description: {
+                    type: "string",
+                    description: "Descrição da compra a antecipar"
+                  },
+                  ai_response: {
+                    type: "string",
+                    description: "Resposta amigável da IA"
+                  }
+                },
+                required: ["card_id", "ai_response"],
                 additionalProperties: false
               }
             }
@@ -917,6 +1002,191 @@ ${financialContext}`
     console.error("Query error:", error);
     return new Response(JSON.stringify({ 
       error: "Erro ao consultar dados"
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+}
+
+// Handler for paying invoice
+async function handlePayInvoice(
+  supabase: any,
+  data: any,
+  userId: string,
+  corsHeaders: any
+) {
+  try {
+    const { invoiceId, accountId, amount, isPartial } = data;
+    
+    // Get invoice
+    const { data: invoice, error: invoiceError } = await supabase
+      .from('credit_card_invoices')
+      .select('*')
+      .eq('id', invoiceId)
+      .eq('user_id', userId)
+      .single();
+    
+    if (invoiceError || !invoice) throw new Error('Fatura não encontrada');
+    
+    const currentPaid = Number(invoice.paid_amount) || 0;
+    const newPaid = currentPaid + amount;
+    const total = Number(invoice.total_amount);
+    
+    const newStatus = newPaid >= total ? 'paid' : 'partial';
+    
+    // Update invoice
+    await supabase
+      .from('credit_card_invoices')
+      .update({
+        status: newStatus,
+        paid_amount: newPaid,
+        paid_at: newStatus === 'paid' ? new Date().toISOString() : invoice.paid_at,
+        payment_account_id: accountId
+      })
+      .eq('id', invoiceId);
+    
+    // Create transaction
+    await supabase
+      .from('transactions')
+      .insert({
+        user_id: userId,
+        account_id: accountId,
+        type: 'expense',
+        category: 'Cartão de Crédito',
+        description: isPartial ? 'Pagamento parcial de fatura' : 'Pagamento de fatura',
+        amount,
+        date: new Date().toISOString().split('T')[0]
+      });
+    
+    // Update account balance
+    const { data: account } = await supabase
+      .from('bank_accounts')
+      .select('balance')
+      .eq('id', accountId)
+      .single();
+    
+    if (account) {
+      await supabase
+        .from('bank_accounts')
+        .update({ balance: Number(account.balance) - amount })
+        .eq('id', accountId);
+    }
+    
+    return new Response(JSON.stringify({ 
+      success: true,
+      message: isPartial 
+        ? `Pagamento parcial de R$ ${amount.toFixed(2)} registrado!`
+        : `Fatura paga com sucesso!`
+    }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+    
+  } catch (error) {
+    console.error("Pay invoice error:", error);
+    return new Response(JSON.stringify({ 
+      error: "Erro ao pagar fatura"
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+}
+
+// Handler for prepaying installments
+async function handlePrepayInstallments(
+  supabase: any,
+  data: any,
+  userId: string,
+  corsHeaders: any
+) {
+  try {
+    const { transactionId, accountId, installmentsToPay } = data;
+    
+    // Get transaction
+    const { data: transaction, error: txError } = await supabase
+      .from('credit_card_transactions')
+      .select('*')
+      .eq('id', transactionId)
+      .eq('user_id', userId)
+      .single();
+    
+    if (txError || !transaction) throw new Error('Transação não encontrada');
+    
+    const amountToPay = installmentsToPay * Number(transaction.amount);
+    
+    // Find future installments
+    const { data: futureTransactions } = await supabase
+      .from('credit_card_transactions')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('card_id', transaction.card_id)
+      .eq('parent_transaction_id', transaction.parent_transaction_id || transaction.id)
+      .gt('installment_number', transaction.installment_number)
+      .order('installment_number', { ascending: true })
+      .limit(installmentsToPay);
+    
+    if (futureTransactions && futureTransactions.length > 0) {
+      for (const ft of futureTransactions) {
+        // Update invoice total
+        const { data: invoice } = await supabase
+          .from('credit_card_invoices')
+          .select('total_amount')
+          .eq('id', ft.invoice_id)
+          .single();
+        
+        if (invoice) {
+          await supabase
+            .from('credit_card_invoices')
+            .update({ total_amount: Math.max(0, Number(invoice.total_amount) - Number(ft.amount)) })
+            .eq('id', ft.invoice_id);
+        }
+        
+        await supabase
+          .from('credit_card_transactions')
+          .delete()
+          .eq('id', ft.id);
+      }
+    }
+    
+    // Create payment transaction
+    await supabase
+      .from('transactions')
+      .insert({
+        user_id: userId,
+        account_id: accountId,
+        type: 'expense',
+        category: 'Cartão de Crédito',
+        description: `Antecipação de ${installmentsToPay} parcela(s) - ${transaction.description}`,
+        amount: amountToPay,
+        date: new Date().toISOString().split('T')[0]
+      });
+    
+    // Update account balance
+    const { data: account } = await supabase
+      .from('bank_accounts')
+      .select('balance')
+      .eq('id', accountId)
+      .single();
+    
+    if (account) {
+      await supabase
+        .from('bank_accounts')
+        .update({ balance: Number(account.balance) - amountToPay })
+        .eq('id', accountId);
+    }
+    
+    return new Response(JSON.stringify({ 
+      success: true,
+      message: `${installmentsToPay} parcela(s) antecipada(s)! Valor: R$ ${amountToPay.toFixed(2)}`
+    }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+    
+  } catch (error) {
+    console.error("Prepay installments error:", error);
+    return new Response(JSON.stringify({ 
+      error: "Erro ao antecipar parcelas"
     }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

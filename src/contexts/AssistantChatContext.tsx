@@ -245,7 +245,11 @@ export function AssistantChatProvider({ children }: { children: ReactNode }) {
               description: data.data.description || null,
               amount: data.data.amount || null,
               due_date: data.data.due_date || null,
-              is_completed: false
+              is_completed: false,
+              is_recurring: data.data.is_recurring || false,
+              recurrence_type: data.data.recurrence_type || 'none',
+              recurrence_day: data.data.due_date ? new Date(data.data.due_date).getDate() : null,
+              parent_reminder_id: null
             });
             addMessage({
               role: 'assistant',
@@ -258,6 +262,15 @@ export function AssistantChatProvider({ children }: { children: ReactNode }) {
               status: 'error'
             });
           }
+          break;
+
+        case 'pay_invoice':
+        case 'prepay_installments':
+          // These actions need confirmation - show message and let user handle in UI
+          addMessage({
+            role: 'assistant',
+            content: data.ai_response || 'Para pagar faturas ou antecipar parcelas, acesse a aba de Cartões de Crédito e use os botões disponíveis. Posso te ajudar com mais alguma coisa?'
+          });
           break;
 
         case 'query_finances':
