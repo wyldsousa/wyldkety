@@ -1,6 +1,8 @@
 export interface CreditCard {
   id: string;
   user_id: string;
+  group_id?: string | null;
+  created_by_user_id?: string | null;
   name: string;
   bank_name: string;
   credit_limit: number;
@@ -16,6 +18,7 @@ export interface CreditCard {
 export interface CreditCardInvoice {
   id: string;
   user_id: string;
+  group_id?: string | null;
   card_id: string;
   month: number;
   year: number;
@@ -32,6 +35,8 @@ export interface CreditCardInvoice {
 export interface CreditCardTransaction {
   id: string;
   user_id: string;
+  group_id?: string | null;
+  created_by_user_id?: string | null;
   card_id: string;
   invoice_id: string;
   amount: number;

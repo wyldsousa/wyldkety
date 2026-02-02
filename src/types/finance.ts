@@ -1,6 +1,8 @@
 export interface BankAccount {
   id: string;
   user_id: string;
+  group_id?: string | null;
+  created_by_user_id?: string | null;
   name: string;
   bank_name: string;
   account_type: 'checking' | 'savings' | 'investment';
@@ -16,6 +18,8 @@ export interface BankAccount {
 export interface Transaction {
   id: string;
   user_id: string;
+  group_id?: string | null;
+  created_by_user_id?: string | null;
   account_id: string;
   type: 'income' | 'expense' | 'transfer';
   category: string;
@@ -33,6 +37,11 @@ export interface Profile {
   full_name: string | null;
   avatar_url: string | null;
   phone: string | null;
+  email_verified: boolean;
+  phone_verified: boolean;
+  email_verification_token: string | null;
+  phone_verification_code: string | null;
+  email_verification_sent_at: string | null;
   created_at: string;
   updated_at: string;
 }
