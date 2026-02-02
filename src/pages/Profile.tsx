@@ -9,7 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Progress } from '@/components/ui/progress';
 import { 
-  User, Mail, Phone, Save, Camera, Loader2, 
+  User, Mail, Save, Camera, Loader2, 
   CheckCircle2, XCircle, Send, Users, UserPlus, 
   Crown, Shield, Trash2, Settings, Plus, Sparkles, Clock
 } from 'lucide-react';
@@ -73,7 +73,6 @@ export default function Profile() {
     
     await updateProfile.mutateAsync({
       full_name: formData.get('full_name') as string,
-      phone: formData.get('phone') as string || null,
     });
     
     setIsEditing(false);
@@ -358,19 +357,6 @@ export default function Profile() {
                 </div>
                 <p className="text-xs text-muted-foreground">O email não pode ser alterado</p>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone">Telefone</Label>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input 
-                    id="phone" 
-                    name="phone" 
-                    placeholder="(00) 00000-0000"
-                    defaultValue={profile?.phone || ''}
-                    className="pl-10"
-                  />
-                </div>
-              </div>
               <div className="flex gap-3">
                 <Button type="button" variant="outline" onClick={() => setIsEditing(false)} className="flex-1">
                   Cancelar
@@ -429,21 +415,6 @@ export default function Profile() {
                     </Button>
                   )}
                 </div>
-              </div>
-
-              <div className="p-4 rounded-lg bg-muted/50">
-                <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-3">
-                    <Phone className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">Telefone</span>
-                  </div>
-                  {profile?.phone ? (
-                    <Badge variant="secondary" className="bg-muted text-muted-foreground">
-                      Não verificado
-                    </Badge>
-                  ) : null}
-                </div>
-                <p className="text-foreground font-medium ml-7">{profile?.phone || '-'}</p>
               </div>
 
               <Button onClick={() => setIsEditing(true)} className="w-full">
