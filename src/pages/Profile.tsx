@@ -11,7 +11,7 @@ import { Progress } from '@/components/ui/progress';
 import { 
   User, Mail, Save, Camera, Loader2, 
   CheckCircle2, XCircle, Send, Users, UserPlus, 
-  Crown, Shield, Trash2, Settings, Plus, Sparkles, Clock
+  Crown, Shield, Trash2, Settings, Plus, Sparkles, Clock, Edit, MoreVertical
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
@@ -28,6 +28,12 @@ import {
   DialogFooter,
   DialogDescription
 } from '@/components/ui/dialog';
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from '@/components/ui/dropdown-menu';
 import { GroupPermissions, DEFAULT_MEMBER_PERMISSIONS, FULL_PERMISSIONS } from '@/types/groups';
 
 export default function Profile() {
@@ -37,7 +43,9 @@ export default function Profile() {
     groups, 
     pendingInvites, 
     memberships,
-    createGroup, 
+    createGroup,
+    updateGroup,
+    deleteGroup,
     inviteUser, 
     acceptInvite, 
     rejectInvite,
@@ -57,8 +65,12 @@ export default function Profile() {
   const [isVerifyingEmail, setIsVerifyingEmail] = useState(false);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
+  const [showEditGroup, setShowEditGroup] = useState(false);
+  const [showDeleteGroup, setShowDeleteGroup] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [newGroupName, setNewGroupName] = useState('');
+  const [editGroupName, setEditGroupName] = useState('');
+  const [editGroupDescription, setEditGroupDescription] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
   const [invitePermissions, setInvitePermissions] = useState<GroupPermissions>(DEFAULT_MEMBER_PERMISSIONS);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -227,6 +239,43 @@ export default function Profile() {
     setInviteEmail('');
     setShowInvite(false);
     setInvitePermissions(DEFAULT_MEMBER_PERMISSIONS);
+  };
+
+  const handleEditGroup = async () => {
+    if (!editGroupName.trim() || !selectedGroupId) {
+      toast.error('Digite um nome para o grupo');
+      return;
+    }
+
+    await updateGroup.mutateAsync({
+      groupId: selectedGroupId,
+      name: editGroupName.trim(),
+      description: editGroupDescription.trim() || undefined,
+    });
+    setEditGroupName('');
+    setEditGroupDescription('');
+    setShowEditGroup(false);
+    setSelectedGroupId(null);
+  };
+
+  const handleDeleteGroup = async () => {
+    if (!selectedGroupId) return;
+
+    await deleteGroup.mutateAsync(selectedGroupId);
+    setShowDeleteGroup(false);
+    setSelectedGroupId(null);
+  };
+
+  const openEditGroupDialog = (group: { id: string; name: string; description: string | null }) => {
+    setSelectedGroupId(group.id);
+    setEditGroupName(group.name);
+    setEditGroupDescription(group.description || '');
+    setShowEditGroup(true);
+  };
+
+  const openDeleteGroupDialog = (groupId: string) => {
+    setSelectedGroupId(groupId);
+    setShowDeleteGroup(true);
   };
 
   const getInitials = (name: string | null) => {
@@ -540,23 +589,44 @@ export default function Profile() {
                         </div>
                         <div>
                           <h3 className="font-semibold">{group.name}</h3>
+                          {group.description && (
+                            <p className="text-xs text-muted-foreground line-clamp-1">{group.description}</p>
+                          )}
                           <p className="text-sm text-muted-foreground">
                             {isAdmin ? 'Administrador' : 'Membro'}
                           </p>
                         </div>
                       </div>
                       {isAdmin && (
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => {
-                            setSelectedGroupId(group.id);
-                            setShowInvite(true);
-                          }}
-                        >
-                          <UserPlus className="w-4 h-4 mr-1" />
-                          Convidar
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="sm" variant="ghost">
+                              <MoreVertical className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem 
+                              onClick={() => {
+                                setSelectedGroupId(group.id);
+                                setShowInvite(true);
+                              }}
+                            >
+                              <UserPlus className="w-4 h-4 mr-2" />
+                              Convidar membro
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openEditGroupDialog(group)}>
+                              <Edit className="w-4 h-4 mr-2" />
+                              Editar grupo
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => openDeleteGroupDialog(group.id)}
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Excluir grupo
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       )}
                     </div>
 
@@ -792,6 +862,73 @@ export default function Profile() {
                 </Button>
                 <Button onClick={handleInviteUser} disabled={inviteUser.isPending}>
                   {inviteUser.isPending ? 'Enviando...' : 'Enviar Convite'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Edit Group Dialog */}
+          <Dialog open={showEditGroup} onOpenChange={setShowEditGroup}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Editar Grupo</DialogTitle>
+                <DialogDescription>
+                  Altere as informações do seu grupo financeiro
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Nome do grupo</Label>
+                  <Input 
+                    placeholder="Ex: Família Silva" 
+                    value={editGroupName}
+                    onChange={(e) => setEditGroupName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Descrição (opcional)</Label>
+                  <Input 
+                    placeholder="Ex: Finanças da família" 
+                    value={editGroupDescription}
+                    onChange={(e) => setEditGroupDescription(e.target.value)}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowEditGroup(false)}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleEditGroup} disabled={updateGroup.isPending}>
+                  {updateGroup.isPending ? 'Salvando...' : 'Salvar'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Delete Group Dialog */}
+          <Dialog open={showDeleteGroup} onOpenChange={setShowDeleteGroup}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Excluir Grupo</DialogTitle>
+                <DialogDescription>
+                  Tem certeza que deseja excluir este grupo financeiro? Esta ação não pode ser desfeita.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4">
+                <p className="text-sm text-muted-foreground">
+                  Todos os membros serão removidos do grupo. Os dados financeiros associados ao grupo serão mantidos, mas não estarão mais vinculados a nenhum grupo.
+                </p>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowDeleteGroup(false)}>
+                  Cancelar
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  onClick={handleDeleteGroup} 
+                  disabled={deleteGroup.isPending}
+                >
+                  {deleteGroup.isPending ? 'Excluindo...' : 'Excluir Grupo'}
                 </Button>
               </DialogFooter>
             </DialogContent>
