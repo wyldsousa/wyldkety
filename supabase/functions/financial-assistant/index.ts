@@ -6,10 +6,145 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// ============= INPUT VALIDATION UTILITIES =============
+
+// Validate and sanitize amount values
+function validateAmount(amount: unknown): { valid: boolean; value: number; error?: string } {
+  if (amount === undefined || amount === null) {
+    return { valid: false, value: 0, error: "Valor é obrigatório" };
+  }
+  
+  const num = typeof amount === 'string' ? parseFloat(amount) : Number(amount);
+  
+  if (isNaN(num)) {
+    return { valid: false, value: 0, error: "Valor deve ser um número válido" };
+  }
+  
+  if (num < 0.01) {
+    return { valid: false, value: 0, error: "Valor mínimo é R$ 0,01" };
+  }
+  
+  if (num > 999999999) {
+    return { valid: false, value: 0, error: "Valor máximo é R$ 999.999.999,00" };
+  }
+  
+  // Round to 2 decimal places
+  return { valid: true, value: Math.round(num * 100) / 100 };
+}
+
+// Sanitize text input - remove control characters and limit length
+function sanitizeText(text: unknown, maxLength: number = 500): string {
+  if (text === undefined || text === null) return '';
+  
+  const str = String(text)
+    // Remove control characters except newlines and tabs
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    // Limit length
+    .slice(0, maxLength)
+    // Trim whitespace
+    .trim();
+  
+  return str;
+}
+
+// Validate UUID format
+function isValidUUID(id: unknown): boolean {
+  if (typeof id !== 'string') return false;
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(id);
+}
+
+// Validate date string format (YYYY-MM-DD)
+function isValidDateString(date: string): boolean {
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(date)) return false;
+  
+  const parsed = new Date(date);
+  return !isNaN(parsed.getTime());
+}
+
+// Validate transaction type
+function isValidTransactionType(type: unknown): type is 'income' | 'expense' {
+  return type === 'income' || type === 'expense';
+}
+
+// Validate category name
+function validateCategory(category: unknown): { valid: boolean; value: string; error?: string } {
+  if (!category) {
+    return { valid: false, value: '', error: "Categoria é obrigatória" };
+  }
+  
+  const sanitized = sanitizeText(category, 100);
+  
+  if (sanitized.length < 1) {
+    return { valid: false, value: '', error: "Categoria não pode estar vazia" };
+  }
+  
+  return { valid: true, value: sanitized };
+}
+
+// Validate installments
+function validateInstallments(installments: unknown): number {
+  if (installments === undefined || installments === null) return 1;
+  
+  const num = Number(installments);
+  if (isNaN(num) || num < 1) return 1;
+  if (num > 60) return 60; // Max 60 installments
+  
+  return Math.floor(num);
+}
+
+// Validate transaction data object
+function validateTransactionData(data: any): { valid: boolean; data?: any; error?: string } {
+  if (!data || typeof data !== 'object') {
+    return { valid: false, error: "Dados da transação inválidos" };
+  }
+
+  // Validate amount
+  const amountResult = validateAmount(data.amount);
+  if (!amountResult.valid) {
+    return { valid: false, error: amountResult.error };
+  }
+
+  // Validate category
+  const categoryResult = validateCategory(data.category);
+  if (!categoryResult.valid) {
+    return { valid: false, error: categoryResult.error };
+  }
+
+  // Validate account_id if provided
+  if (data.account_id && !isValidUUID(data.account_id)) {
+    return { valid: false, error: "ID da conta inválido" };
+  }
+
+  // Validate card_id if provided
+  if (data.card_id && !isValidUUID(data.card_id)) {
+    return { valid: false, error: "ID do cartão inválido" };
+  }
+
+  // Validate type if provided
+  if (data.type && !isValidTransactionType(data.type)) {
+    return { valid: false, error: "Tipo de transação inválido" };
+  }
+
+  return {
+    valid: true,
+    data: {
+      ...data,
+      amount: amountResult.value,
+      category: categoryResult.value,
+      description: sanitizeText(data.description, 500),
+      installments: validateInstallments(data.installments)
+    }
+  };
+}
+
+// ============= DATE PARSING =============
+
 // Helper to parse relative dates
 function parseRelativeDate(dateStr: string): string {
   const today = new Date();
-  const lower = dateStr.toLowerCase().trim();
+  const lower = sanitizeText(dateStr, 50).toLowerCase();
   
   if (lower === 'hoje' || lower === 'today') {
     return today.toISOString().split('T')[0];
@@ -31,14 +166,25 @@ function parseRelativeDate(dateStr: string): string {
   const dayMatch = lower.match(/dia\s*(\d{1,2})/);
   if (dayMatch) {
     const day = parseInt(dayMatch[1]);
-    const result = new Date(today.getFullYear(), today.getMonth(), day);
-    return result.toISOString().split('T')[0];
+    if (day >= 1 && day <= 31) {
+      const result = new Date(today.getFullYear(), today.getMonth(), day);
+      return result.toISOString().split('T')[0];
+    }
+  }
+  
+  // Try to parse ISO date format
+  if (isValidDateString(dateStr)) {
+    return dateStr;
   }
   
   return today.toISOString().split('T')[0];
 }
 
+// ============= AUTHENTICATION =============
+
 // Authenticate and get user ID from JWT
+// Note: verify_jwt = false in config.toml is intentional per Lovable security guidelines.
+// This allows manual JWT validation using getClaims() for proper authentication.
 async function authenticateRequest(req: Request): Promise<{ userId: string | null; error: string | null }> {
   const authHeader = req.headers.get('Authorization');
   
@@ -633,16 +779,37 @@ async function handleConfirmTransaction(
   corsHeaders: any
 ) {
   try {
+    // Validate transaction data
+    const validation = validateTransactionData(transactionData);
+    if (!validation.valid) {
+      return new Response(JSON.stringify({ 
+        error: validation.error || "Dados inválidos"
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    
+    const validatedData = validation.data!;
     const transactions = [];
-    const installments = transactionData.installments || 1;
-    const baseAmount = transactionData.amount / installments;
-    const baseDate = new Date(transactionData.date || new Date());
+    const installments = validatedData.installments;
+    const baseAmount = validatedData.amount / installments;
+    const baseDate = new Date(validatedData.date || new Date());
 
     // Verify account belongs to user before proceeding
+    if (!isValidUUID(validatedData.account_id)) {
+      return new Response(JSON.stringify({ 
+        error: "ID da conta inválido"
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { data: accountCheck, error: accountError } = await supabase
       .from('bank_accounts')
       .select('id')
-      .eq('id', transactionData.account_id)
+      .eq('id', validatedData.account_id)
       .eq('user_id', userId)
       .single();
 
@@ -661,18 +828,18 @@ async function handleConfirmTransaction(
       installmentDate.setMonth(installmentDate.getMonth() + i);
       
       const description = installments > 1 
-        ? `${transactionData.description} (${i + 1}/${installments})`
-        : transactionData.description;
+        ? `${validatedData.description} (${i + 1}/${installments})`
+        : validatedData.description;
 
       transactions.push({
         user_id: userId,
-        account_id: transactionData.account_id,
-        type: transactionData.type,
+        account_id: validatedData.account_id,
+        type: validatedData.type,
         amount: baseAmount,
-        category: transactionData.category,
+        category: validatedData.category,
         description: description,
         date: installmentDate.toISOString().split('T')[0],
-        transfer_to_account_id: transactionData.transfer_to_account_id || null
+        transfer_to_account_id: validatedData.transfer_to_account_id || null
       });
     }
 
@@ -685,14 +852,14 @@ async function handleConfirmTransaction(
     if (error) throw error;
 
     // Update account balance
-    const totalAmount = transactionData.type === 'income' 
-      ? transactionData.amount 
-      : -transactionData.amount;
+    const totalAmount = validatedData.type === 'income' 
+      ? validatedData.amount 
+      : -validatedData.amount;
 
     const { data: account } = await supabase
       .from('bank_accounts')
       .select('balance')
-      .eq('id', transactionData.account_id)
+      .eq('id', validatedData.account_id)
       .eq('user_id', userId)
       .single();
 
@@ -700,25 +867,35 @@ async function handleConfirmTransaction(
       await supabase
         .from('bank_accounts')
         .update({ balance: Number(account.balance) + totalAmount })
-        .eq('id', transactionData.account_id)
+        .eq('id', validatedData.account_id)
         .eq('user_id', userId);
     }
 
     // Handle transfer destination
-    if (transactionData.transfer_to_account_id) {
+    if (validatedData.transfer_to_account_id) {
+      // Validate transfer destination UUID
+      if (!isValidUUID(validatedData.transfer_to_account_id)) {
+        return new Response(JSON.stringify({ 
+          error: "ID da conta de destino inválido"
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       // Verify destination account also belongs to user
       const { data: destAccount } = await supabase
         .from('bank_accounts')
         .select('balance')
-        .eq('id', transactionData.transfer_to_account_id)
+        .eq('id', validatedData.transfer_to_account_id)
         .eq('user_id', userId)
         .single();
 
       if (destAccount) {
         await supabase
           .from('bank_accounts')
-          .update({ balance: Number(destAccount.balance) + transactionData.amount })
-          .eq('id', transactionData.transfer_to_account_id)
+          .update({ balance: Number(destAccount.balance) + validatedData.amount })
+          .eq('id', validatedData.transfer_to_account_id)
           .eq('user_id', userId);
       }
     }
@@ -752,15 +929,37 @@ async function handleCreditCardTransaction(
   corsHeaders: any
 ) {
   try {
-    const installments = transactionData.installments || 1;
-    const baseAmount = transactionData.amount / installments;
-    const baseDate = new Date(transactionData.date || new Date());
+    // Validate transaction data
+    const validation = validateTransactionData(transactionData);
+    if (!validation.valid) {
+      return new Response(JSON.stringify({ 
+        error: validation.error || "Dados inválidos"
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    
+    const validatedData = validation.data!;
+    const installments = validatedData.installments;
+    const baseAmount = validatedData.amount / installments;
+    const baseDate = new Date(validatedData.date || new Date());
+
+    // Validate card_id
+    if (!isValidUUID(validatedData.card_id)) {
+      return new Response(JSON.stringify({ 
+        error: "ID do cartão inválido"
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Verify card belongs to user
     const { data: card, error: cardError } = await supabase
       .from('credit_cards')
       .select('*')
-      .eq('id', transactionData.card_id)
+      .eq('id', validatedData.card_id)
       .eq('user_id', userId)
       .single();
 
@@ -796,7 +995,7 @@ async function handleCreditCardTransaction(
       let { data: invoice } = await supabase
         .from('credit_card_invoices')
         .select('*')
-        .eq('card_id', transactionData.card_id)
+        .eq('card_id', validatedData.card_id)
         .eq('user_id', userId)
         .eq('month', invoiceMonth)
         .eq('year', invoiceYear)
@@ -807,7 +1006,7 @@ async function handleCreditCardTransaction(
           .from('credit_card_invoices')
           .insert({
             user_id: userId,
-            card_id: transactionData.card_id,
+            card_id: validatedData.card_id,
             month: invoiceMonth,
             year: invoiceYear,
             total_amount: 0,
@@ -823,18 +1022,18 @@ async function handleCreditCardTransaction(
 
       // Create the transaction
       const description = installments > 1
-        ? `${transactionData.description} (${i + 1}/${installments})`
-        : transactionData.description;
+        ? `${validatedData.description} (${i + 1}/${installments})`
+        : validatedData.description;
 
       const { error: txError } = await supabase
         .from('credit_card_transactions')
         .insert({
           user_id: userId,
-          card_id: transactionData.card_id,
+          card_id: validatedData.card_id,
           invoice_id: invoice.id,
           amount: baseAmount,
           description: description,
-          category: transactionData.category,
+          category: validatedData.category,
           date: installmentDate.toISOString().split('T')[0],
           installment_number: i + 1,
           total_installments: installments
