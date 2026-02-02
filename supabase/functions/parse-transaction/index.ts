@@ -1,9 +1,39 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+// Authenticate and get user ID from JWT
+async function authenticateRequest(req: Request): Promise<{ userId: string | null; error: string | null }> {
+  const authHeader = req.headers.get('Authorization');
+  
+  if (!authHeader?.startsWith('Bearer ')) {
+    return { userId: null, error: 'Missing or invalid Authorization header' };
+  }
+
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+  const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
+
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    return { userId: null, error: 'Server configuration error' };
+  }
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: { headers: { Authorization: authHeader } }
+  });
+
+  const token = authHeader.replace('Bearer ', '');
+  const { data, error } = await supabase.auth.getClaims(token);
+  
+  if (error || !data?.claims) {
+    return { userId: null, error: 'Invalid or expired token' };
+  }
+
+  return { userId: data.claims.sub as string, error: null };
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -11,6 +41,18 @@ serve(async (req) => {
   }
 
   try {
+    // Authenticate the request first
+    const { userId, error: authError } = await authenticateRequest(req);
+    
+    if (authError || !userId) {
+      return new Response(JSON.stringify({ 
+        error: authError || 'Unauthorized'
+      }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { message, accounts, categories } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
