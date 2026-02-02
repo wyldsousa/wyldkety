@@ -835,6 +835,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      delete_financial_group: { Args: { _group_id: string }; Returns: boolean }
+      get_auth_email: { Args: never; Returns: string }
       has_group_permission: {
         Args: { _group_id: string; _permission: string; _user_id: string }
         Returns: boolean
@@ -846,6 +848,23 @@ export type Database = {
       is_group_member: {
         Args: { _group_id: string; _user_id: string }
         Returns: boolean
+      }
+      update_financial_group: {
+        Args: { _description?: string; _group_id: string; _name: string }
+        Returns: {
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "financial_groups"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
     }
     Enums: {

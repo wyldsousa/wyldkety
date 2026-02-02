@@ -235,6 +235,50 @@ export function useFinancialGroups() {
     },
   });
 
+  // Update group details (name, description)
+  const updateGroup = useMutation({
+    mutationFn: async ({ groupId, name, description }: { groupId: string; name: string; description?: string }) => {
+      const { data, error } = await supabase
+        .rpc('update_financial_group', {
+          _group_id: groupId,
+          _name: name,
+          _description: description || null,
+        });
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['financial-groups'] });
+      toast.success('Grupo atualizado com sucesso!');
+    },
+    onError: (error) => {
+      toast.error('Erro ao atualizar grupo: ' + error.message);
+    },
+  });
+
+  // Delete a group (admin only)
+  const deleteGroup = useMutation({
+    mutationFn: async (groupId: string) => {
+      const { data, error } = await supabase
+        .rpc('delete_financial_group', {
+          _group_id: groupId,
+        });
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['financial-groups'] });
+      queryClient.invalidateQueries({ queryKey: ['group-memberships'] });
+      queryClient.invalidateQueries({ queryKey: ['group-members'] });
+      toast.success('Grupo excluído com sucesso!');
+    },
+    onError: (error) => {
+      toast.error('Erro ao excluir grupo: ' + error.message);
+    },
+  });
+
   // Get current user's permissions for a specific group
   const getUserPermissions = (groupId: string | null): GroupPermissions | null => {
     if (!groupId || !memberships) return null;
@@ -268,6 +312,8 @@ export function useFinancialGroups() {
     pendingInvites,
     isLoading: groupsLoading || membershipsLoading || invitesLoading,
     createGroup,
+    updateGroup,
+    deleteGroup,
     inviteUser,
     acceptInvite,
     rejectInvite,
