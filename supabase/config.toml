@@ -1,5 +1,17 @@
 project_id = "tzgkncrsjicrecwgjwpx"
 
+# ============================================================================
+# EDGE FUNCTION CONFIGURATION
+# ============================================================================
+# verify_jwt = false is INTENTIONAL per Lovable security guidelines.
+# Manual JWT verification is implemented using supabase.auth.getClaims()
+# in each function for proper authentication. This approach provides:
+# - Consistent authentication flow across all functions
+# - Proper error handling for invalid/expired tokens
+# - User ID extraction from verified JWT claims
+# - Protection against user ID spoofing
+# ============================================================================
+
 [functions.parse-transaction]
 verify_jwt = false
 

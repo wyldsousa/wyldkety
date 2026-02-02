@@ -6,7 +6,119 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// ============= INPUT VALIDATION UTILITIES =============
+
+// Validate and sanitize amount values
+function validateAmount(amount: unknown): { valid: boolean; value: number; error?: string } {
+  if (amount === undefined || amount === null) {
+    return { valid: false, value: 0, error: "Valor é obrigatório" };
+  }
+  
+  const num = typeof amount === 'string' ? parseFloat(amount) : Number(amount);
+  
+  if (isNaN(num)) {
+    return { valid: false, value: 0, error: "Valor deve ser um número válido" };
+  }
+  
+  if (num < 0.01) {
+    return { valid: false, value: 0, error: "Valor mínimo é R$ 0,01" };
+  }
+  
+  if (num > 999999999) {
+    return { valid: false, value: 0, error: "Valor máximo é R$ 999.999.999,00" };
+  }
+  
+  // Round to 2 decimal places
+  return { valid: true, value: Math.round(num * 100) / 100 };
+}
+
+// Sanitize text input - remove control characters and limit length
+function sanitizeText(text: unknown, maxLength: number = 500): string {
+  if (text === undefined || text === null) return '';
+  
+  const str = String(text)
+    // Remove control characters except newlines and tabs
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    // Limit length
+    .slice(0, maxLength)
+    // Trim whitespace
+    .trim();
+  
+  return str;
+}
+
+// Validate UUID format
+function isValidUUID(id: unknown): boolean {
+  if (typeof id !== 'string') return false;
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(id);
+}
+
+// Validate transaction type
+function isValidTransactionType(type: unknown): type is 'income' | 'expense' {
+  return type === 'income' || type === 'expense';
+}
+
+// Validate category name
+function validateCategory(category: unknown): { valid: boolean; value: string; error?: string } {
+  if (!category) {
+    return { valid: false, value: '', error: "Categoria é obrigatória" };
+  }
+  
+  const sanitized = sanitizeText(category, 100);
+  
+  if (sanitized.length < 1) {
+    return { valid: false, value: '', error: "Categoria não pode estar vazia" };
+  }
+  
+  return { valid: true, value: sanitized };
+}
+
+// Validate parsed transaction data
+function validateParsedTransaction(data: any): { valid: boolean; data?: any; error?: string } {
+  if (!data || typeof data !== 'object') {
+    return { valid: false, error: "Dados da transação inválidos" };
+  }
+
+  // Validate type
+  if (!isValidTransactionType(data.type)) {
+    return { valid: false, error: "Tipo de transação inválido (deve ser 'income' ou 'expense')" };
+  }
+
+  // Validate amount
+  const amountResult = validateAmount(data.amount);
+  if (!amountResult.valid) {
+    return { valid: false, error: amountResult.error };
+  }
+
+  // Validate category
+  const categoryResult = validateCategory(data.category);
+  if (!categoryResult.valid) {
+    return { valid: false, error: categoryResult.error };
+  }
+
+  // Validate account_id if provided
+  if (data.account_id && !isValidUUID(data.account_id)) {
+    return { valid: false, error: "ID da conta inválido" };
+  }
+
+  return {
+    valid: true,
+    data: {
+      type: data.type,
+      amount: amountResult.value,
+      category: categoryResult.value,
+      description: sanitizeText(data.description, 500),
+      account_id: data.account_id
+    }
+  };
+}
+
+// ============= AUTHENTICATION =============
+
 // Authenticate and get user ID from JWT
+// Note: verify_jwt = false in config.toml is intentional per Lovable security guidelines.
+// This allows manual JWT validation using getClaims() for proper authentication.
 async function authenticateRequest(req: Request): Promise<{ userId: string | null; error: string | null }> {
   const authHeader = req.headers.get('Authorization');
   
@@ -54,6 +166,48 @@ serve(async (req) => {
     }
 
     const { message, accounts, categories } = await req.json();
+    
+    // Validate required fields
+    if (!message || typeof message !== 'string') {
+      return new Response(JSON.stringify({ 
+        error: "Mensagem é obrigatória"
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Sanitize and limit message length
+    const sanitizedMessage = sanitizeText(message, 1000);
+    if (sanitizedMessage.length < 1) {
+      return new Response(JSON.stringify({ 
+        error: "Mensagem não pode estar vazia"
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Validate accounts array
+    if (!Array.isArray(accounts) || accounts.length === 0) {
+      return new Response(JSON.stringify({ 
+        error: "Pelo menos uma conta bancária é necessária"
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Validate categories
+    if (!categories || !categories.income || !categories.expense) {
+      return new Response(JSON.stringify({ 
+        error: "Categorias são obrigatórias"
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
     if (!LOVABLE_API_KEY) {
@@ -72,10 +226,10 @@ Ao analisar a mensagem do usuário, extraia:
 5. Conta: Se o usuário mencionar um banco específico, use o ID correspondente
 
 Contas disponíveis:
-${accounts.map((a: any) => `- ${a.name} (${a.bank_name}): ID "${a.id}"`).join('\n')}
+${accounts.map((a: any) => `- ${sanitizeText(a.name, 100)} (${sanitizeText(a.bank_name, 100)}): ID "${a.id}"`).join('\n')}
 
-Categorias de receita: ${categories.income.join(', ')}
-Categorias de despesa: ${categories.expense.join(', ')}
+Categorias de receita: ${categories.income.map((c: string) => sanitizeText(c, 100)).join(', ')}
+Categorias de despesa: ${categories.expense.map((c: string) => sanitizeText(c, 100)).join(', ')}
 
 Exemplos:
 - "Gastei 50 reais no mercado" → expense, 50, Alimentação
@@ -93,7 +247,7 @@ Exemplos:
         model: "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: message }
+          { role: "user", content: sanitizedMessage }
         ],
         tools: [
           {
@@ -161,10 +315,22 @@ Exemplos:
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
     
     if (toolCall && toolCall.function?.arguments) {
-      const transactionData = JSON.parse(toolCall.function.arguments);
+      const rawTransactionData = JSON.parse(toolCall.function.arguments);
+      
+      // Validate the parsed transaction data
+      const validation = validateParsedTransaction(rawTransactionData);
+      if (!validation.valid) {
+        return new Response(JSON.stringify({ 
+          error: validation.error || "Dados da transação inválidos"
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      
       return new Response(JSON.stringify({ 
         success: true, 
-        transaction: transactionData 
+        transaction: validation.data 
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
