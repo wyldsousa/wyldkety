@@ -328,6 +328,36 @@ export type Database = {
           },
         ]
       }
+      email_verifications: {
+        Row: {
+          created_at: string | null
+          email: string
+          expires_at: string
+          id: string
+          user_id: string
+          verification_code: string
+          verified_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          expires_at?: string
+          id?: string
+          user_id: string
+          verification_code: string
+          verified_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          expires_at?: string
+          id?: string
+          user_id?: string
+          verification_code?: string
+          verified_at?: string | null
+        }
+        Relationships: []
+      }
       financial_groups: {
         Row: {
           created_at: string
@@ -513,6 +543,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      phone_verifications: {
+        Row: {
+          created_at: string | null
+          expires_at: string
+          id: string
+          phone: string
+          user_id: string
+          verification_code: string
+          verified_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at?: string
+          id?: string
+          phone: string
+          user_id: string
+          verification_code: string
+          verified_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string
+          id?: string
+          phone?: string
+          user_id?: string
+          verification_code?: string
+          verified_at?: string | null
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -734,6 +794,39 @@ export type Database = {
           updated_at?: string
           user_id?: string
           xp?: number
+        }
+        Relationships: []
+      }
+      user_subscriptions: {
+        Row: {
+          ad_access_expires_at: string | null
+          created_at: string | null
+          id: string
+          is_premium: boolean | null
+          premium_expires_at: string | null
+          premium_started_at: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          ad_access_expires_at?: string | null
+          created_at?: string | null
+          id?: string
+          is_premium?: boolean | null
+          premium_expires_at?: string | null
+          premium_started_at?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          ad_access_expires_at?: string | null
+          created_at?: string | null
+          id?: string
+          is_premium?: boolean | null
+          premium_expires_at?: string | null
+          premium_started_at?: string | null
+          updated_at?: string | null
+          user_id?: string
         }
         Relationships: []
       }

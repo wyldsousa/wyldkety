@@ -11,8 +11,9 @@ import { useCreditCards } from '@/hooks/useCreditCards';
 import { ChatMessageComponent } from './ChatMessage';
 import { TransactionPreview } from './TransactionPreview';
 import { QuickActions } from './QuickActions';
+import { AccessGate } from './AccessGate';
 
-export function GlobalChat() {
+function ChatContent() {
   const {
     messages,
     isLoading,
@@ -51,7 +52,7 @@ export function GlobalChat() {
   };
 
   return (
-    <Card className="h-[calc(100vh-12rem)] flex flex-col shadow-xl border-0 bg-gradient-to-b from-card to-card/95">
+    <Card className="h-[calc(100vh-14rem)] flex flex-col shadow-xl border-0 bg-gradient-to-b from-card to-card/95">
       <CardHeader className="pb-3 border-b border-border/50">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-3">
@@ -145,5 +146,13 @@ export function GlobalChat() {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+export function GlobalChat() {
+  return (
+    <AccessGate>
+      <ChatContent />
+    </AccessGate>
   );
 }
