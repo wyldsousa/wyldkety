@@ -2,34 +2,78 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { CreditCard, CreditCardInvoice, CreditCardTransaction } from '@/types/creditCard';
 import { useAuth } from './useAuth';
+import { useActiveGroup } from '@/contexts/ActiveGroupContext';
 import { toast } from 'sonner';
+import { useEffect } from 'react';
 
 export function useCreditCards() {
   const { user } = useAuth();
+  const { activeGroupId } = useActiveGroup();
   const queryClient = useQueryClient();
 
   const { data: cards = [], isLoading } = useQuery({
-    queryKey: ['credit_cards', user?.id],
+    queryKey: ['credit_cards', user?.id, activeGroupId],
     queryFn: async () => {
       if (!user) return [];
-      const { data, error } = await supabase
+      
+      let query = supabase
         .from('credit_cards')
         .select('*')
-        .eq('user_id', user.id)
         .order('created_at', { ascending: true });
       
+      if (activeGroupId) {
+        query = query.eq('group_id', activeGroupId);
+      } else {
+        query = query.eq('user_id', user.id).is('group_id', null);
+      }
+      
+      const { data, error } = await query;
       if (error) throw error;
       return data as CreditCard[];
     },
     enabled: !!user,
   });
 
+  // Real-time subscription for credit cards
+  useEffect(() => {
+    if (!user) return;
+
+    const filter = activeGroupId 
+      ? `group_id=eq.${activeGroupId}`
+      : `user_id=eq.${user.id}`;
+
+    const channel = supabase
+      .channel(`credit_cards_${activeGroupId || 'personal'}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'credit_cards',
+          filter,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['credit_cards', user.id, activeGroupId] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, activeGroupId, queryClient]);
+
   const createCard = useMutation({
     mutationFn: async (card: Omit<CreditCard, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
       if (!user) throw new Error('Not authenticated');
       const { data, error } = await supabase
         .from('credit_cards')
-        .insert({ ...card, user_id: user.id })
+        .insert({ 
+          ...card, 
+          user_id: user.id,
+          group_id: activeGroupId || null,
+          created_by_user_id: user.id,
+        })
         .select()
         .single();
       
@@ -98,18 +142,25 @@ export function useCreditCards() {
 
 export function useCreditCardInvoices(cardId?: string) {
   const { user } = useAuth();
+  const { activeGroupId } = useActiveGroup();
   const queryClient = useQueryClient();
 
   const { data: invoices = [], isLoading } = useQuery({
-    queryKey: ['credit_card_invoices', user?.id, cardId],
+    queryKey: ['credit_card_invoices', user?.id, activeGroupId, cardId],
     queryFn: async () => {
       if (!user) return [];
+      
       let query = supabase
         .from('credit_card_invoices')
         .select('*')
-        .eq('user_id', user.id)
         .order('year', { ascending: false })
         .order('month', { ascending: false });
+      
+      if (activeGroupId) {
+        query = query.eq('group_id', activeGroupId);
+      } else {
+        query = query.eq('user_id', user.id).is('group_id', null);
+      }
       
       if (cardId) {
         query = query.eq('card_id', cardId);
@@ -121,6 +172,30 @@ export function useCreditCardInvoices(cardId?: string) {
     },
     enabled: !!user,
   });
+
+  // Real-time subscription for invoices
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel(`credit_card_invoices_${activeGroupId || 'personal'}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'credit_card_invoices',
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['credit_card_invoices', user.id, activeGroupId] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, activeGroupId, queryClient]);
 
   const getOrCreateInvoice = useMutation({
     mutationFn: async ({ cardId, month, year }: { cardId: string; month: number; year: number }) => {
@@ -145,7 +220,8 @@ export function useCreditCardInvoices(cardId?: string) {
           year,
           total_amount: 0,
           minimum_amount: 0,
-          status: 'open'
+          status: 'open',
+          group_id: activeGroupId || null,
         })
         .select()
         .single();
@@ -200,7 +276,9 @@ export function useCreditCardInvoices(cardId?: string) {
           category: 'Cartão de Crédito',
           description: 'Pagamento de fatura',
           amount,
-          date: new Date().toISOString().split('T')[0]
+          date: new Date().toISOString().split('T')[0],
+          group_id: activeGroupId || null,
+          created_by_user_id: user.id,
         });
       
       // Update account balance
@@ -269,7 +347,9 @@ export function useCreditCardInvoices(cardId?: string) {
           category: 'Cartão de Crédito',
           description: `Pagamento parcial de fatura`,
           amount,
-          date: new Date().toISOString().split('T')[0]
+          date: new Date().toISOString().split('T')[0],
+          group_id: activeGroupId || null,
+          created_by_user_id: user.id,
         });
       
       // Update account balance
@@ -320,17 +400,24 @@ export function useCreditCardInvoices(cardId?: string) {
 
 export function useCreditCardTransactions(invoiceId?: string) {
   const { user } = useAuth();
+  const { activeGroupId } = useActiveGroup();
   const queryClient = useQueryClient();
 
   const { data: transactions = [], isLoading } = useQuery({
-    queryKey: ['credit_card_transactions', user?.id, invoiceId],
+    queryKey: ['credit_card_transactions', user?.id, activeGroupId, invoiceId],
     queryFn: async () => {
       if (!user) return [];
+      
       let query = supabase
         .from('credit_card_transactions')
         .select('*')
-        .eq('user_id', user.id)
         .order('date', { ascending: false });
+      
+      if (activeGroupId) {
+        query = query.eq('group_id', activeGroupId);
+      } else {
+        query = query.eq('user_id', user.id).is('group_id', null);
+      }
       
       if (invoiceId) {
         query = query.eq('invoice_id', invoiceId);
@@ -343,13 +430,42 @@ export function useCreditCardTransactions(invoiceId?: string) {
     enabled: !!user,
   });
 
+  // Real-time subscription for card transactions
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel(`credit_card_transactions_${activeGroupId || 'personal'}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'credit_card_transactions',
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['credit_card_transactions', user.id, activeGroupId] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, activeGroupId, queryClient]);
+
   const createTransaction = useMutation({
     mutationFn: async (transaction: Omit<CreditCardTransaction, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
       if (!user) throw new Error('Not authenticated');
       
       const { data, error } = await supabase
         .from('credit_card_transactions')
-        .insert({ ...transaction, user_id: user.id })
+        .insert({ 
+          ...transaction, 
+          user_id: user.id,
+          group_id: activeGroupId || null,
+          created_by_user_id: user.id,
+        })
         .select()
         .single();
       
@@ -440,7 +556,9 @@ export function useCreditCardTransactions(invoiceId?: string) {
           category: 'Cartão de Crédito',
           description: `Antecipação de ${installmentsToPay} parcela(s) - ${transaction.description}`,
           amount: amountToPay,
-          date: new Date().toISOString().split('T')[0]
+          date: new Date().toISOString().split('T')[0],
+          group_id: activeGroupId || null,
+          created_by_user_id: user.id,
         });
       
       // Update account balance
