@@ -2,35 +2,75 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Category } from '@/types/app';
 import { useAuth } from './useAuth';
+import { useActiveGroup } from '@/contexts/ActiveGroupContext';
 import { toast } from 'sonner';
 import { TRANSACTION_CATEGORIES } from '@/types/finance';
+import { useEffect } from 'react';
 
 export function useCategories() {
   const { user } = useAuth();
+  const { activeGroupId } = useActiveGroup();
   const queryClient = useQueryClient();
 
   const { data: categories = [], isLoading } = useQuery({
-    queryKey: ['categories', user?.id],
+    queryKey: ['categories', user?.id, activeGroupId],
     queryFn: async () => {
       if (!user) return [];
-      const { data, error } = await supabase
+      
+      let query = supabase
         .from('categories')
         .select('*')
-        .or(`user_id.eq.${user.id},is_default.eq.true`)
         .order('name');
       
+      if (activeGroupId) {
+        // Group mode: get default categories + group categories
+        query = query.or(`is_default.eq.true,group_id.eq.${activeGroupId}`);
+      } else {
+        // Personal mode: get default categories + user's personal categories
+        query = query.or(`is_default.eq.true,and(user_id.eq.${user.id},group_id.is.null)`);
+      }
+      
+      const { data, error } = await query;
       if (error) throw error;
       return data as Category[];
     },
     enabled: !!user,
   });
 
+  // Real-time subscription for categories
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel(`categories_${activeGroupId || 'personal'}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'categories',
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['categories', user.id, activeGroupId] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, activeGroupId, queryClient]);
+
   const createCategory = useMutation({
     mutationFn: async (category: Omit<Category, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'is_default'>) => {
       if (!user) throw new Error('Not authenticated');
       const { data, error } = await supabase
         .from('categories')
-        .insert({ ...category, user_id: user.id })
+        .insert({ 
+          ...category, 
+          user_id: user.id,
+          group_id: activeGroupId || null,
+        })
         .select()
         .single();
       
