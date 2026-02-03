@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -60,20 +61,17 @@ export function AccessGate({ children }: AccessGateProps) {
   };
 
   const handleWatchAd = async () => {
-    setIsWatchingAd(true);
-    
-    // Simulate ad viewing (in production, integrate with AdMob)
-    // For now, wait 5 seconds to simulate ad
-    await new Promise(resolve => setTimeout(resolve, 5000));
-    
-    await grantAdAccess.mutateAsync();
-    setIsWatchingAd(false);
+    // TODO: Integrate with AdMob for real ad viewing
+    // Currently disabled - requires ad integration
+    toast.info('Integração com anúncios em desenvolvimento. Por favor, adquira o Premium.');
+    return;
   };
 
   const handleActivatePremium = async () => {
-    // In production, integrate with payment gateway
-    // For now, just activate
-    await activatePremium.mutateAsync();
+    // TODO: Integrate with payment gateway (Stripe, etc.)
+    // Currently disabled - requires payment integration
+    toast.info('Integração de pagamento em desenvolvimento. Entre em contato para ativar o Premium.');
+    return;
   };
 
   if (isLoading) {
