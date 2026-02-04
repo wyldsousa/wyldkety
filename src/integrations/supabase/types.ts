@@ -866,6 +866,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      users_share_group: {
+        Args: { _target_user_id: string; _viewer_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       group_role: "admin" | "member"

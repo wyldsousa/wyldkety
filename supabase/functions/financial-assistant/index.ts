@@ -239,6 +239,7 @@ serve(async (req) => {
       categories,
       action,
       userId: providedUserId,
+      groupId,
       transactionData,
       conversationHistory = []
     } = await req.json();
@@ -257,6 +258,17 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // Validate groupId format if provided
+    if (groupId && !isValidUUID(groupId)) {
+      return new Response(JSON.stringify({ 
+        error: 'Invalid group ID',
+        type: 'validation_error'
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
@@ -269,29 +281,29 @@ serve(async (req) => {
     // Create Supabase client for database operations
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
-    // Handle direct actions - now using authenticated userId
+    // Handle direct actions - now using authenticated userId and groupId
     if (action === 'confirm_transaction' && transactionData) {
-      return await handleConfirmTransaction(supabase, transactionData, userId, corsHeaders);
+      return await handleConfirmTransaction(supabase, transactionData, userId, groupId, corsHeaders);
     }
 
     if (action === 'confirm_credit_card_transaction' && transactionData) {
-      return await handleCreditCardTransaction(supabase, transactionData, userId, corsHeaders);
+      return await handleCreditCardTransaction(supabase, transactionData, userId, groupId, corsHeaders);
     }
 
     if (action === 'delete_transaction' && transactionData?.id) {
-      return await handleDeleteTransaction(supabase, transactionData.id, userId, corsHeaders);
+      return await handleDeleteTransaction(supabase, transactionData.id, userId, groupId, corsHeaders);
     }
 
     if (action === 'pay_invoice' && transactionData) {
-      return await handlePayInvoice(supabase, transactionData, userId, corsHeaders);
+      return await handlePayInvoice(supabase, transactionData, userId, groupId, corsHeaders);
     }
 
     if (action === 'prepay_installments' && transactionData) {
-      return await handlePrepayInstallments(supabase, transactionData, userId, corsHeaders);
+      return await handlePrepayInstallments(supabase, transactionData, userId, groupId, corsHeaders);
     }
 
     if (action === 'query') {
-      return await handleQuery(supabase, LOVABLE_API_KEY, message, userId, accounts, conversationHistory, corsHeaders);
+      return await handleQuery(supabase, LOVABLE_API_KEY, message, userId, groupId, accounts, conversationHistory, corsHeaders);
     }
 
     // Main AI processing for transaction parsing
@@ -776,6 +788,7 @@ async function handleConfirmTransaction(
   supabase: any, 
   transactionData: any, 
   userId: string,
+  groupId: string | null,
   corsHeaders: any
 ) {
   try {
@@ -796,7 +809,7 @@ async function handleConfirmTransaction(
     const baseAmount = validatedData.amount / installments;
     const baseDate = new Date(validatedData.date || new Date());
 
-    // Verify account belongs to user before proceeding
+    // Verify account belongs to user or group before proceeding
     if (!isValidUUID(validatedData.account_id)) {
       return new Response(JSON.stringify({ 
         error: "ID da conta inválido"
@@ -806,12 +819,19 @@ async function handleConfirmTransaction(
       });
     }
 
-    const { data: accountCheck, error: accountError } = await supabase
+    // Check account ownership based on context (personal or group)
+    let accountQuery = supabase
       .from('bank_accounts')
       .select('id')
-      .eq('id', validatedData.account_id)
-      .eq('user_id', userId)
-      .single();
+      .eq('id', validatedData.account_id);
+    
+    if (groupId) {
+      accountQuery = accountQuery.eq('group_id', groupId);
+    } else {
+      accountQuery = accountQuery.eq('user_id', userId).is('group_id', null);
+    }
+
+    const { data: accountCheck, error: accountError } = await accountQuery.single();
 
     if (accountError || !accountCheck) {
       return new Response(JSON.stringify({ 
@@ -839,7 +859,9 @@ async function handleConfirmTransaction(
         category: validatedData.category,
         description: description,
         date: installmentDate.toISOString().split('T')[0],
-        transfer_to_account_id: validatedData.transfer_to_account_id || null
+        transfer_to_account_id: validatedData.transfer_to_account_id || null,
+        group_id: groupId || null,
+        created_by_user_id: userId
       });
     }
 
@@ -856,19 +878,24 @@ async function handleConfirmTransaction(
       ? validatedData.amount 
       : -validatedData.amount;
 
-    const { data: account } = await supabase
+    let balanceQuery = supabase
       .from('bank_accounts')
       .select('balance')
-      .eq('id', validatedData.account_id)
-      .eq('user_id', userId)
-      .single();
+      .eq('id', validatedData.account_id);
+    
+    if (groupId) {
+      balanceQuery = balanceQuery.eq('group_id', groupId);
+    } else {
+      balanceQuery = balanceQuery.eq('user_id', userId);
+    }
+
+    const { data: account } = await balanceQuery.single();
 
     if (account) {
       await supabase
         .from('bank_accounts')
         .update({ balance: Number(account.balance) + totalAmount })
-        .eq('id', validatedData.account_id)
-        .eq('user_id', userId);
+        .eq('id', validatedData.account_id);
     }
 
     // Handle transfer destination
@@ -883,20 +910,25 @@ async function handleConfirmTransaction(
         });
       }
 
-      // Verify destination account also belongs to user
-      const { data: destAccount } = await supabase
+      // Verify destination account also belongs to user or group
+      let destQuery = supabase
         .from('bank_accounts')
         .select('balance')
-        .eq('id', validatedData.transfer_to_account_id)
-        .eq('user_id', userId)
-        .single();
+        .eq('id', validatedData.transfer_to_account_id);
+      
+      if (groupId) {
+        destQuery = destQuery.eq('group_id', groupId);
+      } else {
+        destQuery = destQuery.eq('user_id', userId);
+      }
+
+      const { data: destAccount } = await destQuery.single();
 
       if (destAccount) {
         await supabase
           .from('bank_accounts')
           .update({ balance: Number(destAccount.balance) + validatedData.amount })
-          .eq('id', validatedData.transfer_to_account_id)
-          .eq('user_id', userId);
+          .eq('id', validatedData.transfer_to_account_id);
       }
     }
 
@@ -926,6 +958,7 @@ async function handleCreditCardTransaction(
   supabase: any,
   transactionData: any,
   userId: string,
+  groupId: string | null,
   corsHeaders: any
 ) {
   try {
@@ -955,13 +988,19 @@ async function handleCreditCardTransaction(
       });
     }
 
-    // Verify card belongs to user
-    const { data: card, error: cardError } = await supabase
+    // Verify card belongs to user or group
+    let cardQuery = supabase
       .from('credit_cards')
       .select('*')
-      .eq('id', validatedData.card_id)
-      .eq('user_id', userId)
-      .single();
+      .eq('id', validatedData.card_id);
+    
+    if (groupId) {
+      cardQuery = cardQuery.eq('group_id', groupId);
+    } else {
+      cardQuery = cardQuery.eq('user_id', userId).is('group_id', null);
+    }
+
+    const { data: card, error: cardError } = await cardQuery.single();
 
     if (cardError || !card) {
       return new Response(JSON.stringify({ 
@@ -1074,16 +1113,23 @@ async function handleDeleteTransaction(
   supabase: any,
   transactionId: string,
   userId: string,
+  groupId: string | null,
   corsHeaders: any
 ) {
   try {
-    // Get transaction details first - verify ownership
-    const { data: transaction, error: fetchError } = await supabase
+    // Get transaction details first - verify ownership based on context
+    let txQuery = supabase
       .from('transactions')
       .select('*')
-      .eq('id', transactionId)
-      .eq('user_id', userId)
-      .single();
+      .eq('id', transactionId);
+    
+    if (groupId) {
+      txQuery = txQuery.eq('group_id', groupId);
+    } else {
+      txQuery = txQuery.eq('user_id', userId).is('group_id', null);
+    }
+
+    const { data: transaction, error: fetchError } = await txQuery.single();
 
     if (fetchError || !transaction) {
       return new Response(JSON.stringify({ 
@@ -1103,23 +1149,20 @@ async function handleDeleteTransaction(
       .from('bank_accounts')
       .select('balance')
       .eq('id', transaction.account_id)
-      .eq('user_id', userId)
       .single();
 
     if (account) {
       await supabase
         .from('bank_accounts')
         .update({ balance: Number(account.balance) + balanceChange })
-        .eq('id', transaction.account_id)
-        .eq('user_id', userId);
+        .eq('id', transaction.account_id);
     }
 
     // Delete the transaction
     const { error: deleteError } = await supabase
       .from('transactions')
       .delete()
-      .eq('id', transactionId)
-      .eq('user_id', userId);
+      .eq('id', transactionId);
 
     if (deleteError) throw deleteError;
 
@@ -1146,16 +1189,23 @@ async function handlePayInvoice(
   supabase: any,
   transactionData: any,
   userId: string,
+  groupId: string | null,
   corsHeaders: any
 ) {
   try {
-    // Verify card belongs to user
-    const { data: card } = await supabase
+    // Verify card belongs to user or group
+    let cardQuery = supabase
       .from('credit_cards')
       .select('*')
-      .eq('id', transactionData.card_id)
-      .eq('user_id', userId)
-      .single();
+      .eq('id', transactionData.card_id);
+    
+    if (groupId) {
+      cardQuery = cardQuery.eq('group_id', groupId);
+    } else {
+      cardQuery = cardQuery.eq('user_id', userId).is('group_id', null);
+    }
+
+    const { data: card } = await cardQuery.single();
 
     if (!card) {
       return new Response(JSON.stringify({ 
@@ -1168,16 +1218,22 @@ async function handlePayInvoice(
 
     // Find current open invoice
     const now = new Date();
-    const { data: invoice } = await supabase
+    let invoiceQuery = supabase
       .from('credit_card_invoices')
       .select('*')
       .eq('card_id', transactionData.card_id)
-      .eq('user_id', userId)
       .eq('status', 'open')
       .order('year', { ascending: true })
       .order('month', { ascending: true })
-      .limit(1)
-      .single();
+      .limit(1);
+    
+    if (groupId) {
+      invoiceQuery = invoiceQuery.eq('group_id', groupId);
+    } else {
+      invoiceQuery = invoiceQuery.eq('user_id', userId);
+    }
+
+    const { data: invoice } = await invoiceQuery.single();
 
     if (!invoice) {
       return new Response(JSON.stringify({ 
@@ -1190,14 +1246,20 @@ async function handlePayInvoice(
 
     const payAmount = transactionData.amount || invoice.total_amount;
 
-    // Verify account belongs to user if specified
+    // Verify account belongs to user or group if specified
     if (transactionData.account_id) {
-      const { data: account } = await supabase
+      let accountQuery = supabase
         .from('bank_accounts')
         .select('balance')
-        .eq('id', transactionData.account_id)
-        .eq('user_id', userId)
-        .single();
+        .eq('id', transactionData.account_id);
+      
+      if (groupId) {
+        accountQuery = accountQuery.eq('group_id', groupId);
+      } else {
+        accountQuery = accountQuery.eq('user_id', userId);
+      }
+
+      const { data: account } = await accountQuery.single();
 
       if (!account) {
         return new Response(JSON.stringify({ 
@@ -1212,8 +1274,7 @@ async function handlePayInvoice(
       await supabase
         .from('bank_accounts')
         .update({ balance: Number(account.balance) - payAmount })
-        .eq('id', transactionData.account_id)
-        .eq('user_id', userId);
+        .eq('id', transactionData.account_id);
     }
 
     // Update invoice
@@ -1226,8 +1287,7 @@ async function handlePayInvoice(
         status: newStatus,
         payment_account_id: transactionData.account_id
       })
-      .eq('id', invoice.id)
-      .eq('user_id', userId);
+      .eq('id', invoice.id);
 
     return new Response(JSON.stringify({ 
       success: true,
@@ -1252,16 +1312,23 @@ async function handlePrepayInstallments(
   supabase: any,
   transactionData: any,
   userId: string,
+  groupId: string | null,
   corsHeaders: any
 ) {
   try {
-    // Verify card belongs to user
-    const { data: card } = await supabase
+    // Verify card belongs to user or group
+    let cardQuery = supabase
       .from('credit_cards')
       .select('*')
-      .eq('id', transactionData.card_id)
-      .eq('user_id', userId)
-      .single();
+      .eq('id', transactionData.card_id);
+    
+    if (groupId) {
+      cardQuery = cardQuery.eq('group_id', groupId);
+    } else {
+      cardQuery = cardQuery.eq('user_id', userId).is('group_id', null);
+    }
+
+    const { data: card } = await cardQuery.single();
 
     if (!card) {
       return new Response(JSON.stringify({ 
@@ -1297,31 +1364,40 @@ async function handleQuery(
   apiKey: string,
   message: string,
   userId: string,
+  groupId: string | null,
   accounts: any[],
   conversationHistory: any[],
   corsHeaders: any
 ) {
   try {
-    // Fetch user's financial data
+    // Fetch financial data based on context (personal or group)
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
+    let transactionsQuery = supabase
+      .from('transactions')
+      .select('*')
+      .gte('date', startOfMonth.toISOString().split('T')[0])
+      .lte('date', endOfMonth.toISOString().split('T')[0]);
+    
+    let accountsQuery = supabase.from('bank_accounts').select('*');
+    let cardsQuery = supabase.from('credit_cards').select('*');
+    
+    if (groupId) {
+      transactionsQuery = transactionsQuery.eq('group_id', groupId);
+      accountsQuery = accountsQuery.eq('group_id', groupId);
+      cardsQuery = cardsQuery.eq('group_id', groupId);
+    } else {
+      transactionsQuery = transactionsQuery.eq('user_id', userId).is('group_id', null);
+      accountsQuery = accountsQuery.eq('user_id', userId).is('group_id', null);
+      cardsQuery = cardsQuery.eq('user_id', userId).is('group_id', null);
+    }
+
     const [transactionsResult, accountsResult, cardsResult] = await Promise.all([
-      supabase
-        .from('transactions')
-        .select('*')
-        .eq('user_id', userId)
-        .gte('date', startOfMonth.toISOString().split('T')[0])
-        .lte('date', endOfMonth.toISOString().split('T')[0]),
-      supabase
-        .from('bank_accounts')
-        .select('*')
-        .eq('user_id', userId),
-      supabase
-        .from('credit_cards')
-        .select('*')
-        .eq('user_id', userId)
+      transactionsQuery,
+      accountsQuery,
+      cardsQuery
     ]);
 
     const transactions = transactionsResult.data || [];
@@ -1347,8 +1423,9 @@ async function handleQuery(
         expensesByCategory[t.category] = (expensesByCategory[t.category] || 0) + Number(t.amount);
       });
 
+    const contextType = groupId ? 'DO GRUPO' : 'DO USUÁRIO';
     const financialContext = `
-DADOS FINANCEIROS DO USUÁRIO (${now.toLocaleDateString('pt-BR')}):
+DADOS FINANCEIROS ${contextType} (${now.toLocaleDateString('pt-BR')}):
 
 RESUMO DO MÊS:
 - Total de Receitas: R$ ${totalIncome.toFixed(2)}
@@ -1383,7 +1460,7 @@ ${transactions.slice(-10).map((t: any) =>
         messages: [
           { 
             role: "system", 
-            content: `Você é o Fin, um assistente financeiro amigável. Responda perguntas sobre as finanças do usuário com base nos dados abaixo. Seja conversacional e forneça insights úteis.
+            content: `Você é o Fin, um assistente financeiro amigável. Responda perguntas sobre as finanças ${groupId ? 'do grupo' : 'do usuário'} com base nos dados abaixo. Seja conversacional e forneça insights úteis.
 
 ${financialContext}` 
           },
