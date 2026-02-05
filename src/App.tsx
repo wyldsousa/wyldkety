@@ -18,6 +18,7 @@ import Reminders from "./pages/Reminders";
 import Profile from "./pages/Profile";
 import CreditCards from "./pages/CreditCards";
 import News from "./pages/News";
+import Assistant from "./pages/Assistant";
 import NotFound from "./pages/NotFound";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 
@@ -98,6 +99,13 @@ const App = () => (
                   <ProtectedRoute>
                     <AppLayout>
                       <Reminders />
+                    </AppLayout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/assistant" element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <Assistant />
                     </AppLayout>
                   </ProtectedRoute>
                 } />
