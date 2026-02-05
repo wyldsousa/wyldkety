@@ -286,6 +286,11 @@ serve(async (req) => {
       return await handleConfirmTransaction(supabase, transactionData, userId, groupId, corsHeaders);
     }
 
+    // NEW: Atomic transfer handler - prevents duplications
+    if (action === 'confirm_transfer' && transactionData) {
+      return await handleAtomicTransfer(supabase, transactionData, userId, groupId, corsHeaders);
+    }
+
     if (action === 'confirm_credit_card_transaction' && transactionData) {
       return await handleCreditCardTransaction(supabase, transactionData, userId, groupId, corsHeaders);
     }
@@ -946,6 +951,211 @@ async function handleConfirmTransaction(
     console.error("Confirm transaction error:", error);
     return new Response(JSON.stringify({ 
       error: "Erro ao salvar transação"
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+}
+
+// NEW: Atomic transfer handler - single transaction for both accounts
+async function handleAtomicTransfer(
+  supabase: any,
+  transactionData: any,
+  userId: string,
+  groupId: string | null,
+  corsHeaders: any
+) {
+  try {
+    console.log('Starting atomic transfer:', JSON.stringify(transactionData));
+    
+    // Validate amount
+    const amountResult = validateAmount(transactionData.amount);
+    if (!amountResult.valid) {
+      return new Response(JSON.stringify({ 
+        error: amountResult.error || "Valor inválido"
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    
+    const amount = amountResult.value;
+    const description = sanitizeText(transactionData.description, 500) || 'Transferência entre contas';
+    const date = transactionData.date || new Date().toISOString().split('T')[0];
+    
+    // Validate account IDs
+    if (!isValidUUID(transactionData.from_account_id) || !isValidUUID(transactionData.to_account_id)) {
+      return new Response(JSON.stringify({ 
+        error: "IDs de conta inválidos"
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    
+    // Prevent transfer to same account
+    if (transactionData.from_account_id === transactionData.to_account_id) {
+      return new Response(JSON.stringify({ 
+        error: "Não é possível transferir para a mesma conta"
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    
+    // Idempotency check - look for existing transfer in last 5 minutes with same parameters
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const { data: existingTransfer } = await supabase
+      .from('transactions')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('account_id', transactionData.from_account_id)
+      .eq('transfer_to_account_id', transactionData.to_account_id)
+      .eq('amount', amount)
+      .eq('type', 'transfer')
+      .gte('created_at', fiveMinutesAgo)
+      .limit(1);
+    
+    if (existingTransfer && existingTransfer.length > 0) {
+      console.log('Duplicate transfer detected, skipping:', existingTransfer[0].id);
+      return new Response(JSON.stringify({ 
+        success: true,
+        message: "Transferência já processada!",
+        duplicate: true
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    
+    // Verify source account belongs to user and has sufficient balance
+    let sourceQuery = supabase
+      .from('bank_accounts')
+      .select('id, balance, name')
+      .eq('id', transactionData.from_account_id);
+    
+    if (groupId) {
+      sourceQuery = sourceQuery.eq('group_id', groupId);
+    } else {
+      sourceQuery = sourceQuery.eq('user_id', userId).is('group_id', null);
+    }
+    
+    const { data: sourceAccount, error: sourceError } = await sourceQuery.single();
+    
+    if (sourceError || !sourceAccount) {
+      return new Response(JSON.stringify({ 
+        error: "Conta de origem não encontrada ou acesso negado"
+      }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    
+    // Check sufficient balance
+    if (Number(sourceAccount.balance) < amount) {
+      return new Response(JSON.stringify({ 
+        error: `Saldo insuficiente. Disponível: R$ ${Number(sourceAccount.balance).toFixed(2)}`
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    
+    // Verify destination account belongs to user
+    let destQuery = supabase
+      .from('bank_accounts')
+      .select('id, balance, name')
+      .eq('id', transactionData.to_account_id);
+    
+    if (groupId) {
+      destQuery = destQuery.eq('group_id', groupId);
+    } else {
+      destQuery = destQuery.eq('user_id', userId).is('group_id', null);
+    }
+    
+    const { data: destAccount, error: destError } = await destQuery.single();
+    
+    if (destError || !destAccount) {
+      return new Response(JSON.stringify({ 
+        error: "Conta de destino não encontrada ou acesso negado"
+      }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    
+    // ========== ATOMIC OPERATION START ==========
+    // Create the transfer transaction record FIRST (single record, not two)
+    const { data: transferRecord, error: txError } = await supabase
+      .from('transactions')
+      .insert({
+        user_id: userId,
+        account_id: transactionData.from_account_id,
+        transfer_to_account_id: transactionData.to_account_id,
+        type: 'transfer',
+        amount: amount,
+        category: 'Transferência',
+        description: `${description} (${sourceAccount.name} → ${destAccount.name})`,
+        date: date,
+        group_id: groupId || null,
+        created_by_user_id: userId
+      })
+      .select()
+      .single();
+    
+    if (txError) {
+      console.error('Failed to create transfer record:', txError);
+      throw txError;
+    }
+    
+    console.log('Transfer record created:', transferRecord.id);
+    
+    // Only update balances AFTER transaction is recorded
+    // Update source account (subtract)
+    const { error: sourceUpdateError } = await supabase
+      .from('bank_accounts')
+      .update({ balance: Number(sourceAccount.balance) - amount })
+      .eq('id', transactionData.from_account_id);
+    
+    if (sourceUpdateError) {
+      // Rollback: delete the transfer record
+      await supabase.from('transactions').delete().eq('id', transferRecord.id);
+      console.error('Failed to update source balance, rolled back:', sourceUpdateError);
+      throw sourceUpdateError;
+    }
+    
+    // Update destination account (add)
+    const { error: destUpdateError } = await supabase
+      .from('bank_accounts')
+      .update({ balance: Number(destAccount.balance) + amount })
+      .eq('id', transactionData.to_account_id);
+    
+    if (destUpdateError) {
+      // Rollback: revert source balance and delete transaction
+      await supabase
+        .from('bank_accounts')
+        .update({ balance: Number(sourceAccount.balance) })
+        .eq('id', transactionData.from_account_id);
+      await supabase.from('transactions').delete().eq('id', transferRecord.id);
+      console.error('Failed to update dest balance, rolled back:', destUpdateError);
+      throw destUpdateError;
+    }
+    // ========== ATOMIC OPERATION END ==========
+    
+    console.log('Transfer completed successfully:', transferRecord.id);
+    
+    return new Response(JSON.stringify({ 
+      success: true,
+      message: `Transferência de R$ ${amount.toFixed(2)} realizada com sucesso!`,
+      transaction: transferRecord
+    }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+    
+  } catch (error) {
+    console.error("Atomic transfer error:", error);
+    return new Response(JSON.stringify({ 
+      error: "Erro ao realizar transferência. Tente novamente."
     }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -319,40 +319,30 @@ export function AssistantChatProvider({ children }: { children: ReactNode }) {
 
         if (error) throw error;
       } else if (transaction.type === 'transfer') {
-        // Handle transfer
-        const { error } = await supabase.functions.invoke('financial-assistant', {
+        // Handle transfer atomically - single call prevents duplications
+        const { data, error } = await supabase.functions.invoke('financial-assistant', {
           body: {
-            action: 'confirm_transaction',
+            action: 'confirm_transfer',
             userId: user.id,
             transactionData: {
-              type: 'expense',
               amount: transaction.amount,
-              category: 'Transferência',
               description: transaction.description,
-              account_id: transaction.account_id,
-              date: transaction.date,
-              transfer_to_account_id: transaction.transfer_to_account_id
+              from_account_id: transaction.account_id,
+              to_account_id: transaction.transfer_to_account_id,
+              date: transaction.date
             }
           }
         });
 
         if (error) throw error;
         
-        // Also create income in destination
-        await supabase.functions.invoke('financial-assistant', {
-          body: {
-            action: 'confirm_transaction',
-            userId: user.id,
-            transactionData: {
-              type: 'income',
-              amount: transaction.amount,
-              category: 'Transferência',
-              description: `Recebido de ${transaction.account_name}`,
-              account_id: transaction.transfer_to_account_id,
-              date: transaction.date
-            }
-          }
-        });
+        // Check if it was a duplicate (already processed)
+        if (data?.duplicate) {
+          toast.info('Transferência já foi processada anteriormente');
+          setPendingTransaction(null);
+          setIsLoading(false);
+          return;
+        }
       } else {
         // Regular transaction
         const { error } = await supabase.functions.invoke('financial-assistant', {
