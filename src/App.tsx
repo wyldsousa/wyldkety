@@ -17,6 +17,7 @@ import Categories from "./pages/Categories";
 import Reminders from "./pages/Reminders";
 import Profile from "./pages/Profile";
 import CreditCards from "./pages/CreditCards";
+import News from "./pages/News";
 import NotFound from "./pages/NotFound";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 
@@ -97,6 +98,13 @@ const App = () => (
                   <ProtectedRoute>
                     <AppLayout>
                       <Reminders />
+                    </AppLayout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/news" element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <News />
                     </AppLayout>
                   </ProtectedRoute>
                 } />
