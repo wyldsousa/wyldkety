@@ -2,32 +2,23 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { BankAccount } from '@/types/finance';
 import { useAuth } from './useAuth';
-import { useActiveGroup } from '@/contexts/ActiveGroupContext';
 import { toast } from 'sonner';
 import { useEffect } from 'react';
 
 export function useBankAccounts() {
   const { user } = useAuth();
-  const { activeGroupId } = useActiveGroup();
   const queryClient = useQueryClient();
 
   const { data: accounts = [], isLoading } = useQuery({
-    queryKey: ['bank_accounts', user?.id, activeGroupId],
+    queryKey: ['bank_accounts', user?.id],
     queryFn: async () => {
       if (!user) return [];
       
-      // If in group mode, fetch group accounts
-      // If not, fetch personal accounts (no group_id)
       let query = supabase
         .from('bank_accounts')
         .select('*')
+        .eq('user_id', user.id)
         .order('created_at', { ascending: true });
-      
-      if (activeGroupId) {
-        query = query.eq('group_id', activeGroupId);
-      } else {
-        query = query.eq('user_id', user.id).is('group_id', null);
-      }
       
       const { data, error } = await query;
       if (error) throw error;
@@ -40,22 +31,18 @@ export function useBankAccounts() {
   useEffect(() => {
     if (!user) return;
 
-    const filter = activeGroupId 
-      ? `group_id=eq.${activeGroupId}`
-      : `user_id=eq.${user.id}`;
-
     const channel = supabase
-      .channel(`bank_accounts_${activeGroupId || 'personal'}`)
+      .channel('bank_accounts_realtime')
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'bank_accounts',
-          filter,
+          filter: `user_id=eq.${user.id}`,
         },
         () => {
-          queryClient.invalidateQueries({ queryKey: ['bank_accounts', user.id, activeGroupId] });
+          queryClient.invalidateQueries({ queryKey: ['bank_accounts', user.id] });
         }
       )
       .subscribe();
@@ -63,7 +50,7 @@ export function useBankAccounts() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, activeGroupId, queryClient]);
+  }, [user, queryClient]);
 
   const createAccount = useMutation({
     mutationFn: async (account: Omit<BankAccount, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
@@ -73,8 +60,6 @@ export function useBankAccounts() {
         .insert({ 
           ...account, 
           user_id: user.id,
-          group_id: activeGroupId || null,
-          created_by_user_id: user.id,
         })
         .select()
         .single();

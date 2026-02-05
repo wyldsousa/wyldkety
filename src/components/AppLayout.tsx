@@ -12,19 +12,15 @@ import {
   CreditCard,
   FileText,
   Tag,
-  Bell,
-  Bot
+  Bell
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
-import { GroupSelector } from '@/components/GroupSelector';
-import { useActiveGroup } from '@/contexts/ActiveGroupContext';
 
 const navItems = [
   { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { path: '/assistant', icon: Bot, label: 'Assistente IA' },
   { path: '/accounts', icon: Building2, label: 'Contas' },
   { path: '/transactions', icon: ArrowLeftRight, label: 'Transações' },
   { path: '/credit-cards', icon: CreditCard, label: 'Cartões' },
@@ -39,21 +35,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const { signOut } = useAuth();
   const location = useLocation();
-  const { activeGroup } = useActiveGroup();
 
   const NavContent = () => (
     <div className="flex flex-col h-full">
       <div className="p-6 border-b border-sidebar-border">
         <h1 className="text-xl font-bold text-sidebar-foreground">FinanceApp</h1>
-        {activeGroup && (
-          <p className="text-sm text-sidebar-foreground/70 mt-1 truncate">
-            {activeGroup.name}
-          </p>
-        )}
-      </div>
-      
-      <div className="px-4 py-3 border-b border-sidebar-border">
-        <GroupSelector />
       </div>
       
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">

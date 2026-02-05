@@ -2,31 +2,24 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Transaction } from '@/types/finance';
 import { useAuth } from './useAuth';
-import { useActiveGroup } from '@/contexts/ActiveGroupContext';
 import { toast } from 'sonner';
 import { useEffect } from 'react';
 
 export function useTransactions(accountId?: string) {
   const { user } = useAuth();
-  const { activeGroupId } = useActiveGroup();
   const queryClient = useQueryClient();
 
   const { data: transactions = [], isLoading } = useQuery({
-    queryKey: ['transactions', user?.id, activeGroupId, accountId],
+    queryKey: ['transactions', user?.id, accountId],
     queryFn: async () => {
       if (!user) return [];
       
       let query = supabase
         .from('transactions')
         .select('*')
+        .eq('user_id', user.id)
         .order('date', { ascending: false })
         .order('created_at', { ascending: false });
-      
-      if (activeGroupId) {
-        query = query.eq('group_id', activeGroupId);
-      } else {
-        query = query.eq('user_id', user.id).is('group_id', null);
-      }
       
       if (accountId) {
         query = query.eq('account_id', accountId);
@@ -43,22 +36,18 @@ export function useTransactions(accountId?: string) {
   useEffect(() => {
     if (!user) return;
 
-    const filter = activeGroupId 
-      ? `group_id=eq.${activeGroupId}`
-      : `user_id=eq.${user.id}`;
-
     const channel = supabase
-      .channel(`transactions_${activeGroupId || 'personal'}`)
+      .channel('transactions_realtime')
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'transactions',
-          filter,
+          filter: `user_id=eq.${user.id}`,
         },
         () => {
-          queryClient.invalidateQueries({ queryKey: ['transactions', user.id, activeGroupId] });
+          queryClient.invalidateQueries({ queryKey: ['transactions', user.id] });
         }
       )
       .subscribe();
@@ -66,7 +55,7 @@ export function useTransactions(accountId?: string) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, activeGroupId, queryClient]);
+  }, [user, queryClient]);
 
   const createTransaction = useMutation({
     mutationFn: async (transaction: Omit<Transaction, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
@@ -78,8 +67,6 @@ export function useTransactions(accountId?: string) {
         .insert({ 
           ...transaction, 
           user_id: user.id,
-          group_id: activeGroupId || null,
-          created_by_user_id: user.id,
         })
         .select()
         .single();

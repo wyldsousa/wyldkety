@@ -3,13 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Badge } from '@/components/ui/badge';
-import { Bot, Send, Loader2, Sparkles, History, Trash2, Users, User } from 'lucide-react';
+import { Bot, Send, Loader2, Sparkles, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useBankAccounts } from '@/hooks/useBankAccounts';
 import { useCategories } from '@/hooks/useCategories';
 import { useAuth } from '@/hooks/useAuth';
-import { useActiveGroup } from '@/contexts/ActiveGroupContext';
 import { useUserProgress, XP_REWARDS } from '@/hooks/useUserProgress';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -51,7 +49,6 @@ export function FinancialAssistantChat() {
   const queryClient = useQueryClient();
 
   const { user } = useAuth();
-  const { activeGroupId, activeGroup } = useActiveGroup();
   const { accounts } = useBankAccounts();
   const { incomeCategories, expenseCategories } = useCategories();
   const { incrementTransactionCount } = useUserProgress();
@@ -118,7 +115,6 @@ export function FinancialAssistantChat() {
             expense: expenseCategories
           },
           userId: user?.id,
-          groupId: activeGroupId,
           action: isQuery ? 'query' : undefined,
           conversationHistory: newHistory.slice(-10)
         }
@@ -228,7 +224,6 @@ export function FinancialAssistantChat() {
           body: {
             action: 'confirm_transaction',
             userId: user.id,
-            groupId: activeGroupId,
             transactionData: {
               type: 'expense',
               amount: transaction.amount,
@@ -248,7 +243,6 @@ export function FinancialAssistantChat() {
           body: {
             action: 'confirm_transaction',
             userId: user.id,
-            groupId: activeGroupId,
             transactionData: {
               type: 'income',
               amount: transaction.amount,
@@ -265,7 +259,6 @@ export function FinancialAssistantChat() {
           body: {
             action: 'confirm_transaction',
             userId: user.id,
-            groupId: activeGroupId,
             transactionData: {
               type: transaction.type,
               amount: transaction.amount,
@@ -360,17 +353,6 @@ export function FinancialAssistantChat() {
               <span className="text-lg font-semibold">Assistente Financeiro</span>
               <div className="flex items-center gap-2">
                 <p className="text-xs text-muted-foreground font-normal">Fin • Seu parceiro financeiro</p>
-                {activeGroup ? (
-                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                    <Users className="w-3 h-3 mr-1" />
-                    {activeGroup.name}
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                    <User className="w-3 h-3 mr-1" />
-                    Pessoal
-                  </Badge>
-                )}
               </div>
             </div>
           </CardTitle>

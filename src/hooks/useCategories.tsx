@@ -2,18 +2,16 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Category } from '@/types/app';
 import { useAuth } from './useAuth';
-import { useActiveGroup } from '@/contexts/ActiveGroupContext';
 import { toast } from 'sonner';
 import { TRANSACTION_CATEGORIES } from '@/types/finance';
 import { useEffect } from 'react';
 
 export function useCategories() {
   const { user } = useAuth();
-  const { activeGroupId } = useActiveGroup();
   const queryClient = useQueryClient();
 
   const { data: categories = [], isLoading } = useQuery({
-    queryKey: ['categories', user?.id, activeGroupId],
+    queryKey: ['categories', user?.id],
     queryFn: async () => {
       if (!user) return [];
       
@@ -22,13 +20,8 @@ export function useCategories() {
         .select('*')
         .order('name');
       
-      if (activeGroupId) {
-        // Group mode: get default categories + group categories
-        query = query.or(`is_default.eq.true,group_id.eq.${activeGroupId}`);
-      } else {
-        // Personal mode: get default categories + user's personal categories
-        query = query.or(`is_default.eq.true,and(user_id.eq.${user.id},group_id.is.null)`);
-      }
+      // Get default categories + user's personal categories
+      query = query.or(`is_default.eq.true,user_id.eq.${user.id}`);
       
       const { data, error } = await query;
       if (error) throw error;
@@ -42,7 +35,7 @@ export function useCategories() {
     if (!user) return;
 
     const channel = supabase
-      .channel(`categories_${activeGroupId || 'personal'}`)
+      .channel('categories_realtime')
       .on(
         'postgres_changes',
         {
@@ -51,7 +44,7 @@ export function useCategories() {
           table: 'categories',
         },
         () => {
-          queryClient.invalidateQueries({ queryKey: ['categories', user.id, activeGroupId] });
+          queryClient.invalidateQueries({ queryKey: ['categories', user.id] });
         }
       )
       .subscribe();
@@ -59,7 +52,7 @@ export function useCategories() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, activeGroupId, queryClient]);
+  }, [user, queryClient]);
 
   const createCategory = useMutation({
     mutationFn: async (category: Omit<Category, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'is_default'>) => {
@@ -69,7 +62,6 @@ export function useCategories() {
         .insert({ 
           ...category, 
           user_id: user.id,
-          group_id: activeGroupId || null,
         })
         .select()
         .single();

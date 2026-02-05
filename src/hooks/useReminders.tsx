@@ -1,7 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
-import { useActiveGroup } from '@/contexts/ActiveGroupContext';
 import { toast } from 'sonner';
 import { useEffect } from 'react';
 
@@ -26,26 +25,20 @@ export interface Reminder {
 
 export function useReminders() {
   const { user } = useAuth();
-  const { activeGroupId } = useActiveGroup();
   const queryClient = useQueryClient();
 
   const { data: reminders = [], isLoading } = useQuery({
-    queryKey: ['reminders', user?.id, activeGroupId],
+    queryKey: ['reminders', user?.id],
     queryFn: async () => {
       if (!user) return [];
       
       let query = supabase
         .from('reminders')
         .select('*')
+        .eq('user_id', user.id)
         .order('is_completed', { ascending: true })
         .order('due_date', { ascending: true, nullsFirst: false })
         .order('created_at', { ascending: false });
-      
-      if (activeGroupId) {
-        query = query.eq('group_id', activeGroupId);
-      } else {
-        query = query.eq('user_id', user.id).is('group_id', null);
-      }
       
       const { data, error } = await query;
       if (error) throw error;
@@ -58,22 +51,18 @@ export function useReminders() {
   useEffect(() => {
     if (!user) return;
 
-    const filter = activeGroupId 
-      ? `group_id=eq.${activeGroupId}`
-      : `user_id=eq.${user.id}`;
-
     const channel = supabase
-      .channel(`reminders_${activeGroupId || 'personal'}`)
+      .channel('reminders_realtime')
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'reminders',
-          filter,
+          filter: `user_id=eq.${user.id}`,
         },
         () => {
-          queryClient.invalidateQueries({ queryKey: ['reminders', user.id, activeGroupId] });
+          queryClient.invalidateQueries({ queryKey: ['reminders', user.id] });
         }
       )
       .subscribe();
@@ -81,7 +70,7 @@ export function useReminders() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, activeGroupId, queryClient]);
+  }, [user, queryClient]);
 
   const createReminder = useMutation({
     mutationFn: async (reminder: Omit<Reminder, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'completed_at' | 'group_id' | 'created_by_user_id'>) => {
@@ -91,8 +80,6 @@ export function useReminders() {
         .insert({ 
           ...reminder, 
           user_id: user.id,
-          group_id: activeGroupId || null,
-          created_by_user_id: user.id,
         })
         .select()
         .single();
