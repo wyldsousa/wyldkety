@@ -13,12 +13,12 @@ import {
   FileText,
   Tag,
   Bell,
-  Megaphone,
   Bot
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { NotificationBell } from '@/components/NotificationBell';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -31,7 +31,6 @@ const navItems = [
   { path: '/categories', icon: Tag, label: 'Categorias' },
   { path: '/reminders', icon: Bell, label: 'Lembretes' },
   { path: '/assistant', icon: Bot, label: 'Assistente IA' },
-  { path: '/news', icon: Megaphone, label: 'Novidades' },
   { path: '/profile', icon: User, label: 'Perfil' },
 ];
 
@@ -90,17 +89,25 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Mobile Header */}
       <header className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-card border-b border-border flex items-center justify-between px-4 z-50">
         <h1 className="text-lg font-bold text-foreground">FinanceApp</h1>
-        <Sheet open={open} onOpenChange={setOpen}>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <Menu className="w-6 h-6" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="p-0 w-64 bg-sidebar border-0">
-            <NavContent />
-          </SheetContent>
-        </Sheet>
+        <div className="flex items-center gap-2">
+          <NotificationBell />
+          <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <Menu className="w-6 h-6" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="p-0 w-64 bg-sidebar border-0">
+              <NavContent />
+            </SheetContent>
+          </Sheet>
+        </div>
       </header>
+
+      {/* Desktop Header with Bell */}
+      <div className="hidden lg:fixed lg:top-4 lg:right-8 lg:z-50">
+        <NotificationBell />
+      </div>
 
       {/* Main Content */}
       <main className="lg:pl-64 pt-16 lg:pt-0 min-h-screen">
