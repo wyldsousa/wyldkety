@@ -13,7 +13,8 @@ import {
   FileText,
   Tag,
   Bell,
-  Megaphone
+  Megaphone,
+  Bot
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -29,6 +30,7 @@ const navItems = [
   { path: '/reports', icon: FileText, label: 'Relatórios' },
   { path: '/categories', icon: Tag, label: 'Categorias' },
   { path: '/reminders', icon: Bell, label: 'Lembretes' },
+  { path: '/assistant', icon: Bot, label: 'Assistente IA' },
   { path: '/news', icon: Megaphone, label: 'Novidades' },
   { path: '/profile', icon: User, label: 'Perfil' },
 ];
