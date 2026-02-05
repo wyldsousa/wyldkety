@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import { AssistantChatProvider } from "./contexts/AssistantChatContext";
-import { ActiveGroupProvider } from "./contexts/ActiveGroupContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AppLayout } from "./components/AppLayout";
 import Auth from "./pages/Auth";
@@ -18,7 +17,6 @@ import Categories from "./pages/Categories";
 import Reminders from "./pages/Reminders";
 import Profile from "./pages/Profile";
 import CreditCards from "./pages/CreditCards";
-import Assistant from "./pages/Assistant";
 import NotFound from "./pages/NotFound";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 
@@ -35,7 +33,6 @@ function AuthRedirect({ children }: { children: React.ReactNode }) {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <ActiveGroupProvider>
         <AssistantChatProvider>
           <TooltipProvider>
             <Toaster />
@@ -103,13 +100,6 @@ const App = () => (
                     </AppLayout>
                   </ProtectedRoute>
                 } />
-                <Route path="/assistant" element={
-                  <ProtectedRoute>
-                    <AppLayout>
-                      <Assistant />
-                    </AppLayout>
-                  </ProtectedRoute>
-                } />
                 <Route path="/profile" element={
                   <ProtectedRoute>
                     <AppLayout>
@@ -123,7 +113,6 @@ const App = () => (
             </BrowserRouter>
           </TooltipProvider>
         </AssistantChatProvider>
-      </ActiveGroupProvider>
     </AuthProvider>
   </QueryClientProvider>
 );
