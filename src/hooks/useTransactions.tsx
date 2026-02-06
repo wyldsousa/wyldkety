@@ -234,7 +234,7 @@ export function useTransactions(accountId?: string) {
     },
   });
 
-  // Calculate totals
+  // Calculate totals for all transactions
   const totalIncome = transactions
     .filter(t => t.type === 'income')
     .reduce((sum, t) => sum + Number(t.amount), 0);
@@ -243,11 +243,38 @@ export function useTransactions(accountId?: string) {
     .filter(t => t.type === 'expense')
     .reduce((sum, t) => sum + Number(t.amount), 0);
 
+  // Helper to get monthly totals
+  const getMonthlyTotals = (year: number, month: number) => {
+    const monthTransactions = transactions.filter(t => {
+      const date = new Date(t.date);
+      return date.getFullYear() === year && date.getMonth() === month;
+    });
+    
+    const monthlyIncome = monthTransactions
+      .filter(t => t.type === 'income')
+      .reduce((sum, t) => sum + Number(t.amount), 0);
+    
+    const monthlyExpenses = monthTransactions
+      .filter(t => t.type === 'expense')
+      .reduce((sum, t) => sum + Number(t.amount), 0);
+    
+    return { monthlyIncome, monthlyExpenses, monthlyBalance: monthlyIncome - monthlyExpenses };
+  };
+
+  // Get current month totals
+  const now = new Date();
+  const currentMonthTotals = getMonthlyTotals(now.getFullYear(), now.getMonth());
+
   return {
     transactions,
     isLoading,
     totalIncome,
     totalExpenses,
+    // Monthly totals
+    monthlyIncome: currentMonthTotals.monthlyIncome,
+    monthlyExpenses: currentMonthTotals.monthlyExpenses,
+    monthlyBalance: currentMonthTotals.monthlyBalance,
+    getMonthlyTotals,
     createTransaction,
     updateTransaction,
     deleteTransaction,
