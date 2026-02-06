@@ -15,7 +15,7 @@ const DEFAULT_COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#8B5CF6', '#EF4444', '
 
 export default function Dashboard() {
   const { totalBalance, totalInvestments, accounts } = useBankAccounts();
-  const { transactions, totalIncome, totalExpenses } = useTransactions();
+  const { transactions, monthlyIncome, monthlyExpenses, getMonthlyTotals } = useTransactions();
   const { categories } = useCategories();
 
   // Create a color map for categories
@@ -96,8 +96,8 @@ export default function Dashboard() {
 
   const stats = [
     { title: 'Saldo Total', value: totalBalance, icon: Wallet, color: 'primary' },
-    { title: 'Receitas', value: totalIncome, icon: TrendingUp, color: 'income' },
-    { title: 'Despesas', value: totalExpenses, icon: TrendingDown, color: 'expense' },
+    { title: 'Receitas do Mês', value: monthlyIncome, icon: TrendingUp, color: 'income' },
+    { title: 'Despesas do Mês', value: monthlyExpenses, icon: TrendingDown, color: 'expense' },
     { title: 'Investimentos', value: totalInvestments, icon: PiggyBank, color: 'investment' },
   ];
 

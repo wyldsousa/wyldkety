@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, ArrowLeftRight, TrendingUp, TrendingDown, Pencil, Trash2, Search, MessageCircle, List } from 'lucide-react';
+import { Plus, ArrowLeftRight, TrendingUp, TrendingDown, Pencil, Trash2, Search, MessageCircle, Calendar } from 'lucide-react';
 import { useTransactions } from '@/hooks/useTransactions';
 import { useBankAccounts } from '@/hooks/useBankAccounts';
 import { useCategories } from '@/hooks/useCategories';
@@ -15,6 +15,8 @@ import { useUserProgress, XP_REWARDS } from '@/hooks/useUserProgress';
 import { formatCurrency, formatDate } from '@/lib/format';
 import { Transaction } from '@/types/finance';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { format, parseISO } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 export default function Transactions() {
   const navigate = useNavigate();
@@ -41,6 +43,30 @@ export default function Transactions() {
     const matchesType = filterType === 'all' || t.type === filterType;
     return matchesSearch && matchesType;
   });
+
+  // Group transactions by month
+  const groupedTransactions = useMemo(() => {
+    const groups: Record<string, Transaction[]> = {};
+    
+    filteredTransactions.forEach(transaction => {
+      const date = parseISO(transaction.date);
+      const monthKey = format(date, 'yyyy-MM');
+      
+      if (!groups[monthKey]) {
+        groups[monthKey] = [];
+      }
+      groups[monthKey].push(transaction);
+    });
+
+    // Sort months in descending order
+    const sortedMonths = Object.keys(groups).sort((a, b) => b.localeCompare(a));
+    
+    return sortedMonths.map(monthKey => ({
+      monthKey,
+      label: format(parseISO(`${monthKey}-01`), "MMMM 'de' yyyy", { locale: ptBR }),
+      transactions: groups[monthKey],
+    }));
+  }, [filteredTransactions]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -265,92 +291,109 @@ export default function Transactions() {
         </CardContent>
       </Card>
 
-      {/* Transactions List */}
-      <Card className="shadow-soft border-0">
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="p-8 text-center">
-              <p className="text-muted-foreground">Carregando...</p>
-            </div>
-          ) : filteredTransactions.length === 0 ? (
-            <div className="p-12 text-center">
-              <ArrowLeftRight className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold text-foreground mb-2">Nenhuma transação encontrada</h3>
-              <p className="text-muted-foreground mb-4">Registre sua primeira transação para começar</p>
-              <Button onClick={() => setOpen(true)} className="gap-2">
-                <Plus className="w-4 h-4" />
-                Nova Transação
-              </Button>
-            </div>
-          ) : (
-            <div className="divide-y divide-border">
-              {filteredTransactions.map((transaction) => (
-                <div key={transaction.id} className="p-4 flex items-center justify-between hover:bg-muted/50 transition-colors">
-                  <div className="flex items-center gap-4">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                      transaction.type === 'income' ? 'bg-income/10' :
-                      transaction.type === 'expense' ? 'bg-expense/10' :
-                      'bg-transfer/10'
-                    }`}>
-                      {getTypeIcon(transaction.type)}
-                    </div>
-                    <div>
-                      <p className="font-medium text-foreground">{transaction.category}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {getAccountName(transaction.account_id)}
-                        {transaction.type === 'transfer' && transaction.transfer_to_account_id && (
-                          <> → {getAccountName(transaction.transfer_to_account_id)}</>
-                        )}
-                      </p>
-                      {transaction.description && (
-                        <p className="text-sm text-muted-foreground">{transaction.description}</p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <p className={`font-semibold ${
-                        transaction.type === 'income' ? 'text-income' :
-                        transaction.type === 'expense' ? 'text-expense' :
-                        'text-transfer'
-                      }`}>
-                        {transaction.type === 'income' ? '+' : '-'}{formatCurrency(Number(transaction.amount))}
-                      </p>
-                      <p className="text-sm text-muted-foreground">{formatDate(transaction.date)}</p>
-                    </div>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => openEditDialog(transaction)}>
-                        <Pencil className="w-4 h-4" />
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" className="text-destructive">
-                            <Trash2 className="w-4 h-4" />
+      {/* Transactions List grouped by month */}
+      {isLoading ? (
+        <Card className="shadow-soft border-0">
+          <CardContent className="p-8 text-center">
+            <p className="text-muted-foreground">Carregando...</p>
+          </CardContent>
+        </Card>
+      ) : groupedTransactions.length === 0 ? (
+        <Card className="shadow-soft border-0">
+          <CardContent className="p-12 text-center">
+            <ArrowLeftRight className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold text-foreground mb-2">Nenhuma transação encontrada</h3>
+            <p className="text-muted-foreground mb-4">Registre sua primeira transação para começar</p>
+            <Button onClick={() => setOpen(true)} className="gap-2">
+              <Plus className="w-4 h-4" />
+              Nova Transação
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {groupedTransactions.map(({ monthKey, label, transactions: monthTransactions }) => (
+            <Card key={monthKey} className="shadow-soft border-0 overflow-hidden">
+              {/* Month Header */}
+              <div className="px-4 py-3 bg-muted/50 border-b flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-muted-foreground" />
+                <h3 className="font-semibold text-foreground capitalize">{label}</h3>
+                <span className="text-sm text-muted-foreground">
+                  ({monthTransactions.length} {monthTransactions.length === 1 ? 'transação' : 'transações'})
+                </span>
+              </div>
+              
+              <CardContent className="p-0">
+                <div className="divide-y divide-border">
+                  {monthTransactions.map((transaction) => (
+                    <div key={transaction.id} className="p-4 flex items-center justify-between hover:bg-muted/50 transition-colors">
+                      <div className="flex items-center gap-4">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                          transaction.type === 'income' ? 'bg-income/10' :
+                          transaction.type === 'expense' ? 'bg-expense/10' :
+                          'bg-transfer/10'
+                        }`}>
+                          {getTypeIcon(transaction.type)}
+                        </div>
+                        <div>
+                          <p className="font-medium text-foreground">{transaction.category}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {getAccountName(transaction.account_id)}
+                            {transaction.type === 'transfer' && transaction.transfer_to_account_id && (
+                              <> → {getAccountName(transaction.transfer_to_account_id)}</>
+                            )}
+                          </p>
+                          {transaction.description && (
+                            <p className="text-sm text-muted-foreground">{transaction.description}</p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <p className={`font-semibold ${
+                            transaction.type === 'income' ? 'text-income' :
+                            transaction.type === 'expense' ? 'text-expense' :
+                            'text-transfer'
+                          }`}>
+                            {transaction.type === 'income' ? '+' : '-'}{formatCurrency(Number(transaction.amount))}
+                          </p>
+                          <p className="text-sm text-muted-foreground">{formatDate(transaction.date)}</p>
+                        </div>
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="icon" onClick={() => openEditDialog(transaction)}>
+                            <Pencil className="w-4 h-4" />
                           </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Excluir transação?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              O saldo da conta será ajustado. Esta ação não pode ser desfeita.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDelete(transaction)} className="bg-destructive text-destructive-foreground">
-                              Excluir
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="icon" className="text-destructive">
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Excluir transação?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  O saldo da conta será ajustado. Esta ação não pode ser desfeita.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDelete(transaction)} className="bg-destructive text-destructive-foreground">
+                                  Excluir
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

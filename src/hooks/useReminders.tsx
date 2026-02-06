@@ -119,22 +119,74 @@ export function useReminders() {
 
   const toggleReminder = useMutation({
     mutationFn: async (reminder: Reminder) => {
+      const wasCompleted = reminder.is_completed;
+      const willBeCompleted = !wasCompleted;
+      
+      // Update the current reminder
       const { data, error } = await supabase
         .from('reminders')
         .update({ 
-          is_completed: !reminder.is_completed,
-          completed_at: !reminder.is_completed ? new Date().toISOString() : null
+          is_completed: willBeCompleted,
+          completed_at: willBeCompleted ? new Date().toISOString() : null
         })
         .eq('id', reminder.id)
         .select()
         .single();
       
       if (error) throw error;
-      return data;
+
+      // If completing a recurring reminder, create the next one
+      if (willBeCompleted && reminder.is_recurring && reminder.recurrence_type !== 'none' && reminder.due_date) {
+        const dueDate = new Date(reminder.due_date);
+        let nextDueDate: Date;
+
+        switch (reminder.recurrence_type) {
+          case 'weekly':
+            nextDueDate = new Date(dueDate);
+            nextDueDate.setDate(nextDueDate.getDate() + 7);
+            break;
+          case 'monthly':
+            nextDueDate = new Date(dueDate);
+            nextDueDate.setMonth(nextDueDate.getMonth() + 1);
+            break;
+          case 'yearly':
+            nextDueDate = new Date(dueDate);
+            nextDueDate.setFullYear(nextDueDate.getFullYear() + 1);
+            break;
+          default:
+            nextDueDate = dueDate;
+        }
+
+        // Create next recurring reminder
+        await supabase
+          .from('reminders')
+          .insert({
+            user_id: reminder.user_id,
+            title: reminder.title,
+            description: reminder.description,
+            amount: reminder.amount,
+            due_date: nextDueDate.toISOString().split('T')[0],
+            is_completed: false,
+            is_recurring: true,
+            recurrence_type: reminder.recurrence_type,
+            recurrence_day: reminder.recurrence_day,
+            parent_reminder_id: reminder.parent_reminder_id || reminder.id,
+          });
+      }
+
+      return { data, reminder };
     },
-    onSuccess: (data) => {
+    onSuccess: ({ data, reminder }) => {
       queryClient.invalidateQueries({ queryKey: ['reminders'] });
-      toast.success(data.is_completed ? 'Lembrete concluído!' : 'Lembrete reaberto!');
+      if (data.is_completed) {
+        if (reminder.is_recurring && reminder.recurrence_type !== 'none') {
+          toast.success('Lembrete concluído! Próximo lembrete criado automaticamente.');
+        } else {
+          toast.success('Lembrete concluído!');
+        }
+      } else {
+        toast.success('Lembrete reaberto!');
+      }
     },
     onError: (error) => {
       toast.error('Erro ao atualizar lembrete: ' + error.message);

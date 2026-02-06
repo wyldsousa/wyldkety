@@ -187,15 +187,19 @@
        {/* Profile Info */}
        <Card className="shadow-soft border-0">
          <CardContent className="p-6">
-           <div className="flex flex-col items-center mb-8">
-             <div className="relative">
-               <Avatar className="w-24 h-24 mb-2">
-                 <AvatarImage src={profile?.avatar_url || undefined} />
-                 <AvatarFallback className="text-2xl bg-primary text-primary-foreground">
-                   {getInitials(profile?.full_name)}
-                 </AvatarFallback>
-               </Avatar>
-               <button
+          <div className="flex flex-col items-center mb-8">
+              <div className="relative">
+                <Avatar className="w-24 h-24 mb-2">
+                  <AvatarImage 
+                    src={profile?.avatar_url || undefined} 
+                    className="object-cover"
+                    style={{ aspectRatio: '1/1' }}
+                  />
+                  <AvatarFallback className="text-2xl bg-primary text-primary-foreground">
+                    {getInitials(profile?.full_name)}
+                  </AvatarFallback>
+                </Avatar>
+                <button
                  onClick={handleAvatarClick}
                  disabled={isUploading}
                  className="absolute bottom-0 right-0 w-8 h-8 bg-primary rounded-full flex items-center justify-center text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
