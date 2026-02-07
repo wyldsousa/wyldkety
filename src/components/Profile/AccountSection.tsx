@@ -64,9 +64,9 @@ export function AccountSection() {
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Apagar conta permanentemente?</AlertDialogTitle>
+              <AlertDialogTitle>Excluir conta permanentemente?</AlertDialogTitle>
               <AlertDialogDescription>
-                Esta ação é irreversível. Todos os seus dados serão perdidos. Digite <strong>EXCLUIR</strong> para confirmar.
+                Esta ação é irreversível. Deseja realmente excluir sua conta? Digite <strong>EXCLUIR</strong> para confirmar.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <div className="py-2">
