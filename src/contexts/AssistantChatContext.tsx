@@ -100,6 +100,19 @@ export function AssistantChatProvider({ children }: { children: ReactNode }) {
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || isLoading) return;
 
+    // Check if AI is enabled
+    const aiEnabledSaved = localStorage.getItem('ai_assistant_enabled');
+    const isAiEnabled = aiEnabledSaved !== null ? JSON.parse(aiEnabledSaved) : true;
+    if (!isAiEnabled) {
+      addMessage({ role: 'user', content: text });
+      addMessage({
+        role: 'assistant',
+        content: '⚠️ O assistente IA está desativado. Ative-o em **Perfil → Preferências** para usar o Fin.',
+        status: 'error'
+      });
+      return;
+    }
+
     addMessage({ role: 'user', content: text });
     setIsLoading(true);
 

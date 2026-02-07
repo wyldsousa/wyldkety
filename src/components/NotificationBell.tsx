@@ -31,11 +31,24 @@ export function NotificationBell() {
   const touchStartX = useRef(0);
   const touchCurrentX = useRef(0);
 
-  // Convert reminders to notifications format
+  // Read notification preferences
+  const notifPrefs = useMemo(() => {
+    const saved = localStorage.getItem('notification_preferences');
+    return saved ? JSON.parse(saved) : { reminders: true, recurring: true, assistant: true };
+  }, [open]); // re-read when popover opens
+
+  // Convert reminders to notifications format (respecting preferences)
   const reminderNotifications = useMemo(() => {
+    if (!notifPrefs.reminders) return [];
+
     const now = new Date();
     return reminders
-      .filter(r => !r.is_completed)
+      .filter(r => {
+        if (r.is_completed) return false;
+        // Filter recurring reminders based on preference
+        if (r.is_recurring && !notifPrefs.recurring) return false;
+        return true;
+      })
       .map(reminder => {
         const dueDate = reminder.due_date ? new Date(reminder.due_date) : null;
         const isOverdue = dueDate && dueDate < now;
@@ -66,7 +79,7 @@ export function NotificationBell() {
         const priorityOrder = { high: 0, medium: 1, low: 2 };
         return priorityOrder[a.priority] - priorityOrder[b.priority];
       });
-  }, [reminders]);
+  }, [reminders, notifPrefs]);
 
   // Combine all notifications
   const allNotifications = useMemo(() => {
