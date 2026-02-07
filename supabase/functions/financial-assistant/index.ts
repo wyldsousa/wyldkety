@@ -141,25 +141,50 @@ function validateTransactionData(data: any): { valid: boolean; data?: any; error
 
 // ============= DATE PARSING =============
 
-// Helper to parse relative dates
-function parseRelativeDate(dateStr: string): string {
-  const today = new Date();
+// Get the current date in the user's timezone (defaults to America/Sao_Paulo)
+function getLocalDate(timezone: string = 'America/Sao_Paulo'): Date {
+  const now = new Date();
+  // Format the date in the user's timezone to extract the local date parts
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const parts = formatter.formatToParts(now);
+  const year = parseInt(parts.find(p => p.type === 'year')!.value);
+  const month = parseInt(parts.find(p => p.type === 'month')!.value) - 1;
+  const day = parseInt(parts.find(p => p.type === 'day')!.value);
+  return new Date(year, month, day);
+}
+
+// Format a Date as YYYY-MM-DD
+function formatDateYMD(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// Helper to parse relative dates using the user's local timezone
+function parseRelativeDate(dateStr: string, timezone: string = 'America/Sao_Paulo'): string {
+  const today = getLocalDate(timezone);
   const lower = sanitizeText(dateStr, 50).toLowerCase();
   
   if (lower === 'hoje' || lower === 'today') {
-    return today.toISOString().split('T')[0];
+    return formatDateYMD(today);
   }
   if (lower === 'ontem' || lower === 'yesterday') {
     today.setDate(today.getDate() - 1);
-    return today.toISOString().split('T')[0];
+    return formatDateYMD(today);
   }
   if (lower === 'anteontem') {
     today.setDate(today.getDate() - 2);
-    return today.toISOString().split('T')[0];
+    return formatDateYMD(today);
   }
   if (lower.includes('semana passada')) {
     today.setDate(today.getDate() - 7);
-    return today.toISOString().split('T')[0];
+    return formatDateYMD(today);
   }
   
   // Try to parse "dia X"
@@ -168,7 +193,7 @@ function parseRelativeDate(dateStr: string): string {
     const day = parseInt(dayMatch[1]);
     if (day >= 1 && day <= 31) {
       const result = new Date(today.getFullYear(), today.getMonth(), day);
-      return result.toISOString().split('T')[0];
+      return formatDateYMD(result);
     }
   }
   
@@ -177,7 +202,7 @@ function parseRelativeDate(dateStr: string): string {
     return dateStr;
   }
   
-  return today.toISOString().split('T')[0];
+  return formatDateYMD(today);
 }
 
 // ============= AUTHENTICATION =============
@@ -745,11 +770,11 @@ DATAS:
       const args = JSON.parse(toolCall.function.arguments);
       const functionName = toolCall.function.name;
 
-      // Process date if present
+      // Process date if present - always use local timezone
       if (args.date) {
         args.date = parseRelativeDate(args.date);
       } else {
-        args.date = new Date().toISOString().split('T')[0];
+        args.date = formatDateYMD(getLocalDate());
       }
 
       // Process due_date for reminders
@@ -812,7 +837,7 @@ async function handleConfirmTransaction(
     const transactions = [];
     const installments = validatedData.installments;
     const baseAmount = validatedData.amount / installments;
-    const baseDate = new Date(validatedData.date || new Date());
+    const baseDate = new Date(validatedData.date || formatDateYMD(getLocalDate()));
 
     // Verify account belongs to user or group before proceeding
     if (!isValidUUID(validatedData.account_id)) {
@@ -982,7 +1007,7 @@ async function handleAtomicTransfer(
     
     const amount = amountResult.value;
     const description = sanitizeText(transactionData.description, 500) || 'Transferência entre contas';
-    const date = transactionData.date || new Date().toISOString().split('T')[0];
+    const date = transactionData.date || formatDateYMD(getLocalDate());
     
     // Validate account IDs
     if (!isValidUUID(transactionData.from_account_id) || !isValidUUID(transactionData.to_account_id)) {
@@ -1186,7 +1211,7 @@ async function handleCreditCardTransaction(
     const validatedData = validation.data!;
     const installments = validatedData.installments;
     const baseAmount = validatedData.amount / installments;
-    const baseDate = new Date(validatedData.date || new Date());
+    const baseDate = new Date(validatedData.date || formatDateYMD(getLocalDate()));
 
     // Validate card_id
     if (!isValidUUID(validatedData.card_id)) {

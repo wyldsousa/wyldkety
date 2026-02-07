@@ -24,6 +24,7 @@ export default function Reminders() {
   const [open, setOpen] = useState(false);
   const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
   const [isRecurring, setIsRecurring] = useState(false);
+  const [autoGenerate, setAutoGenerate] = useState(true);
   
   // Month navigation state
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -88,6 +89,7 @@ export default function Reminders() {
       is_recurring: isRecurring,
       recurrence_type: isRecurring ? (formData.get('recurrence_type') as string || 'monthly') : 'none',
       recurrence_day: formData.get('due_date') ? new Date(formData.get('due_date') as string).getDate() : null,
+      auto_generate: isRecurring ? autoGenerate : false,
     };
 
     if (editingReminder) {
@@ -98,11 +100,13 @@ export default function Reminders() {
     setOpen(false);
     setEditingReminder(null);
     setIsRecurring(false);
+    setAutoGenerate(true);
   };
 
   const openEditDialog = (reminder: Reminder) => {
     setEditingReminder(reminder);
     setIsRecurring(reminder.is_recurring || false);
+    setAutoGenerate(reminder.auto_generate ?? true);
     setOpen(true);
   };
 
@@ -276,24 +280,36 @@ export default function Reminders() {
                 </div>
                 
                 {isRecurring && (
-                  <div className="space-y-2">
-                    <Label htmlFor="recurrence_type">Repetir</Label>
-                    <Select 
-                      name="recurrence_type" 
-                      defaultValue={editingReminder?.recurrence_type || 'monthly'}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Frequência" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="weekly">Semanalmente</SelectItem>
-                        <SelectItem value="monthly">Mensalmente</SelectItem>
-                        <SelectItem value="yearly">Anualmente</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      O lembrete será criado automaticamente no próximo período após ser concluído.
-                    </p>
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="recurrence_type">Repetir</Label>
+                      <Select 
+                        name="recurrence_type" 
+                        defaultValue={editingReminder?.recurrence_type || 'monthly'}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Frequência" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="weekly">Semanalmente</SelectItem>
+                          <SelectItem value="monthly">Mensalmente</SelectItem>
+                          <SelectItem value="yearly">Anualmente</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label htmlFor="auto_generate" className="text-sm font-medium">Gerar automaticamente</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Cria o próximo lembrete ao concluir
+                        </p>
+                      </div>
+                      <Switch
+                        id="auto_generate"
+                        checked={autoGenerate}
+                        onCheckedChange={setAutoGenerate}
+                      />
+                    </div>
                   </div>
                 )}
               </div>

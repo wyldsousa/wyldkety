@@ -622,6 +622,7 @@ export type Database = {
       reminders: {
         Row: {
           amount: number | null
+          auto_generate: boolean
           completed_at: string | null
           created_at: string
           created_by_user_id: string | null
@@ -640,6 +641,7 @@ export type Database = {
         }
         Insert: {
           amount?: number | null
+          auto_generate?: boolean
           completed_at?: string | null
           created_at?: string
           created_by_user_id?: string | null
@@ -658,6 +660,7 @@ export type Database = {
         }
         Update: {
           amount?: number | null
+          auto_generate?: boolean
           completed_at?: string | null
           created_at?: string
           created_by_user_id?: string | null

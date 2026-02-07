@@ -249,7 +249,8 @@ export function AssistantChatProvider({ children }: { children: ReactNode }) {
               is_recurring: data.data.is_recurring || false,
               recurrence_type: data.data.recurrence_type || 'none',
               recurrence_day: data.data.due_date ? new Date(data.data.due_date).getDate() : null,
-              parent_reminder_id: null
+              parent_reminder_id: null,
+              auto_generate: data.data.is_recurring || false,
             });
             addMessage({
               role: 'assistant',
