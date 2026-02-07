@@ -1,18 +1,18 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { 
-  User, Mail, Save, Camera, Loader2, 
+  User, Mail, Save, Loader2, 
   CheckCircle2, XCircle, Send
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { ProfileHeader } from '@/components/Profile/ProfileHeader';
 import { SecuritySection } from '@/components/Profile/SecuritySection';
 import { PreferencesSection } from '@/components/Profile/PreferencesSection';
 import { AccountSection } from '@/components/Profile/AccountSection';
@@ -23,9 +23,7 @@ export default function Profile() {
   const { profile, isLoading, updateProfile } = useProfile();
   
   const [isEditing, setIsEditing] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
   const [isVerifyingEmail, setIsVerifyingEmail] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -38,99 +36,8 @@ export default function Profile() {
     setIsEditing(false);
   };
 
-  const handleAvatarClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user) return;
-
-    if (!file.type.startsWith('image/')) {
-      toast.error('Por favor, selecione uma imagem válida');
-      return;
-    }
-
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error('A imagem deve ter no máximo 10MB');
-      return;
-    }
-
-    setIsUploading(true);
-
-    try {
-      const resizedFile = await resizeImage(file, 512);
-      const fileExt = 'webp';
-      const filePath = `${user.id}/avatar.${fileExt}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, resizedFile, { 
-          upsert: true,
-          contentType: 'image/webp'
-        });
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
-
-      await updateProfile.mutateAsync({
-        avatar_url: publicUrl + '?t=' + Date.now(),
-      });
-
-      toast.success('Foto atualizada com sucesso!');
-    } catch (error: any) {
-      toast.error('Erro ao atualizar foto: ' + error.message);
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const resizeImage = (file: File, maxSize: number): Promise<Blob> => {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-
-      img.onload = () => {
-        let { width, height } = img;
-        
-        if (width > height) {
-          if (width > maxSize) {
-            height = (height * maxSize) / width;
-            width = maxSize;
-          }
-        } else {
-          if (height > maxSize) {
-            width = (width * maxSize) / height;
-            height = maxSize;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-
-        if (ctx) {
-          ctx.imageSmoothingEnabled = true;
-          ctx.imageSmoothingQuality = 'high';
-          ctx.drawImage(img, 0, 0, width, height);
-        }
-
-        canvas.toBlob(
-          (blob) => {
-            if (blob) resolve(blob);
-            else reject(new Error('Failed to create blob'));
-          },
-          'image/webp',
-          0.92
-        );
-      };
-
-      img.onerror = () => reject(new Error('Failed to load image'));
-      img.src = URL.createObjectURL(file);
-    });
+  const handleAvatarUpdated = async (url: string) => {
+    await updateProfile.mutateAsync({ avatar_url: url });
   };
 
   const handleSendVerificationEmail = async () => {
@@ -159,11 +66,6 @@ export default function Profile() {
     }
   };
 
-  const getInitials = (name: string | null) => {
-    if (!name) return 'U';
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-  };
-
   const isEmailVerified = user?.email_confirmed_at !== null;
 
   if (isLoading) {
@@ -187,40 +89,14 @@ export default function Profile() {
       {/* Profile Info */}
       <Card className="shadow-soft border-0">
         <CardContent className="p-6">
-         <div className="flex flex-col items-center mb-8">
-             <div className="relative">
-               <Avatar className="w-24 h-24 mb-2">
-                 <AvatarImage 
-                   src={profile?.avatar_url || undefined} 
-                   className="object-cover"
-                   style={{ aspectRatio: '1/1' }}
-                 />
-                 <AvatarFallback className="text-2xl bg-primary text-primary-foreground">
-                   {getInitials(profile?.full_name)}
-                 </AvatarFallback>
-               </Avatar>
-               <button
-                onClick={handleAvatarClick}
-                disabled={isUploading}
-                className="absolute bottom-0 right-0 w-8 h-8 bg-primary rounded-full flex items-center justify-center text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
-              >
-                {isUploading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Camera className="w-4 h-4" />
-                )}
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleFileChange}
-                className="hidden"
-              />
-            </div>
-            <h2 className="text-xl font-semibold text-foreground mt-2">{profile?.full_name || 'Usuário'}</h2>
-            <p className="text-muted-foreground">{user?.email}</p>
-          </div>
+          <ProfileHeader
+            avatarUrl={profile?.avatar_url}
+            fullName={profile?.full_name}
+            email={user?.email}
+            userId={user?.id}
+            isEditing={isEditing}
+            onAvatarUpdated={handleAvatarUpdated}
+          />
 
           {isEditing ? (
             <form onSubmit={handleSubmit} className="space-y-4">
