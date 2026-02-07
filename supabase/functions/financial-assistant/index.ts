@@ -337,7 +337,86 @@ serve(async (req) => {
     }
 
     // Main AI processing for transaction parsing
+    // Fetch financial summary for context
+    let financialContext = '';
+    try {
+      // Get total balances
+      const { data: accountsData } = await supabase
+        .from('bank_accounts')
+        .select('name, balance, bank_name')
+        .eq('user_id', userId);
+      
+      if (accountsData && accountsData.length > 0) {
+        const totalBalance = accountsData.reduce((sum: number, a: any) => sum + (a.balance || 0), 0);
+        financialContext += `\nRESUMO FINANCEIRO ATUAL DO USUÁRIO:\n`;
+        financialContext += `- Saldo total: R$ ${totalBalance.toFixed(2)}\n`;
+        financialContext += accountsData.map((a: any) => `  • ${a.name} (${a.bank_name}): R$ ${a.balance.toFixed(2)}`).join('\n') + '\n';
+      }
+
+      // Get current month transactions summary
+      const now = getLocalDate();
+      const firstDay = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+      const lastDay = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()).padStart(2, '0')}`;
+
+      const { data: monthTransactions } = await supabase
+        .from('transactions')
+        .select('type, amount, category')
+        .eq('user_id', userId)
+        .gte('date', firstDay)
+        .lte('date', lastDay);
+
+      if (monthTransactions && monthTransactions.length > 0) {
+        const income = monthTransactions.filter((t: any) => t.type === 'income').reduce((s: number, t: any) => s + t.amount, 0);
+        const expenses = monthTransactions.filter((t: any) => t.type === 'expense').reduce((s: number, t: any) => s + t.amount, 0);
+        
+        financialContext += `\nMÊS ATUAL (${now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}):\n`;
+        financialContext += `- Receitas: R$ ${income.toFixed(2)}\n`;
+        financialContext += `- Despesas: R$ ${expenses.toFixed(2)}\n`;
+        financialContext += `- Balanço: R$ ${(income - expenses).toFixed(2)}\n`;
+        financialContext += `- Total de transações: ${monthTransactions.length}\n`;
+
+        // Top expense categories
+        const categoryExpenses: Record<string, number> = {};
+        monthTransactions.filter((t: any) => t.type === 'expense').forEach((t: any) => {
+          categoryExpenses[t.category] = (categoryExpenses[t.category] || 0) + t.amount;
+        });
+        const topCategories = Object.entries(categoryExpenses)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5);
+        if (topCategories.length > 0) {
+          financialContext += `- Top categorias de gasto: ${topCategories.map(([cat, val]) => `${cat} (R$ ${val.toFixed(2)})`).join(', ')}\n`;
+        }
+      }
+
+      // Get pending reminders
+      const { data: reminders } = await supabase
+        .from('reminders')
+        .select('title, amount, due_date')
+        .eq('user_id', userId)
+        .eq('is_completed', false)
+        .order('due_date', { ascending: true })
+        .limit(5);
+
+      if (reminders && reminders.length > 0) {
+        financialContext += `\nLEMBRETES PENDENTES:\n`;
+        financialContext += reminders.map((r: any) => {
+          const dateStr = r.due_date ? new Date(r.due_date).toLocaleDateString('pt-BR') : 'sem data';
+          const amountStr = r.amount ? ` - R$ ${r.amount.toFixed(2)}` : '';
+          return `  • ${r.title}${amountStr} (${dateStr})`;
+        }).join('\n') + '\n';
+      }
+    } catch (e) {
+      console.error('Error fetching financial context:', e);
+    }
+
     const systemPrompt = `Você é um assistente financeiro inteligente e conversacional chamado "Fin". Você ajuda usuários a gerenciar suas finanças através de conversa natural em português brasileiro.
+
+PERSONALIDADE:
+- Seja amigável, direto e profissional
+- Use emojis com moderação para ser acolhedor
+- Quando não tiver dados suficientes, diga explicitamente: "Com os dados que tenho disponíveis..."
+- Nunca invente dados financeiros — use apenas o que está disponível
+- Se o usuário perguntar algo que você não pode responder com certeza, avise claramente
 
 SUAS CAPACIDADES:
 1. Criar transações (receitas e despesas)
@@ -348,18 +427,22 @@ SUAS CAPACIDADES:
 6. Detectar parcelamentos (em Xx, X parcelas, dividido em X)
 7. Detectar recorrências (mensal, semanal, anual, assinatura, aluguel)
 8. Entender datas relativas (hoje, ontem, semana passada, dia X)
-9. Responder perguntas sobre finanças
-10. Fornecer insights financeiros
+9. Responder perguntas sobre finanças com base nos dados reais
+10. Fornecer insights e sugestões financeiras personalizadas
 11. Pagar faturas de cartão de crédito
 12. Pagar parcialmente faturas
 13. Antecipar parcelas de compras parceladas
 
 REGRAS IMPORTANTES:
-- SEMPRE seja amigável e conversacional
+- SEMPRE use dados reais do contexto financeiro abaixo para responder
 - Para transações, SEMPRE use a função apropriada
 - Para perguntas/consultas, use a função query_finances
 - Detecte o INTENT do usuário corretamente
 - Para pagar fatura, SEMPRE pergunte qual conta usar se não especificado
+- NUNCA execute ações financeiras silenciosamente — sempre confirme com o usuário
+- Se houver ambiguidade, peça esclarecimento antes de prosseguir
+
+${financialContext}
 
 CONTEXTO DO USUÁRIO:
 Contas disponíveis:
@@ -370,6 +453,12 @@ ${cards?.map((c: any) => `- ${c.name} (${c.bank_name}): ID "${c.id}"`).join('\n'
 
 Categorias de receita: ${categories?.income?.join(', ') || 'Salário, Freelance, Investimentos, Outros'}
 Categorias de despesa: ${categories?.expense?.join(', ') || 'Alimentação, Transporte, Moradia, Contas, Lazer, Saúde, Educação, Outros'}
+
+INSIGHTS PROATIVOS (use quando relevante):
+- Se o usuário perguntar sobre gastos, compare com meses anteriores quando possível
+- Sugira economia quando detectar gastos elevados em categorias específicas
+- Lembre sobre pagamentos próximos do vencimento
+- Ofereça análises de tendência quando o contexto permitir
 
 DETECÇÃO DE PAGAMENTO DE FATURA:
 - "pagar fatura", "paguei a fatura", "quitar fatura" → pay_invoice
