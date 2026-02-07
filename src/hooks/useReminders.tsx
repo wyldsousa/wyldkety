@@ -19,6 +19,7 @@ export interface Reminder {
   parent_reminder_id: string | null;
   group_id: string | null;
   created_by_user_id: string | null;
+  auto_generate: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -32,7 +33,7 @@ export function useReminders() {
     queryFn: async () => {
       if (!user) return [];
       
-      let query = supabase
+      const { data, error } = await supabase
         .from('reminders')
         .select('*')
         .eq('user_id', user.id)
@@ -40,9 +41,11 @@ export function useReminders() {
         .order('due_date', { ascending: true, nullsFirst: false })
         .order('created_at', { ascending: false });
       
-      const { data, error } = await query;
       if (error) throw error;
-      return data as Reminder[];
+      return (data as any[]).map(r => ({
+        ...r,
+        auto_generate: r.auto_generate ?? true,
+      })) as Reminder[];
     },
     enabled: !!user,
   });
@@ -80,7 +83,7 @@ export function useReminders() {
         .insert({ 
           ...reminder, 
           user_id: user.id,
-        })
+        } as any)
         .select()
         .single();
       
@@ -100,7 +103,7 @@ export function useReminders() {
     mutationFn: async ({ id, ...updates }: Partial<Reminder> & { id: string }) => {
       const { data, error } = await supabase
         .from('reminders')
-        .update(updates)
+        .update(updates as any)
         .eq('id', id)
         .select()
         .single();
@@ -128,15 +131,27 @@ export function useReminders() {
         .update({ 
           is_completed: willBeCompleted,
           completed_at: willBeCompleted ? new Date().toISOString() : null
-        })
+        } as any)
         .eq('id', reminder.id)
         .select()
         .single();
       
       if (error) throw error;
 
-      // If completing a recurring reminder, create the next one
-      if (willBeCompleted && reminder.is_recurring && reminder.recurrence_type !== 'none' && reminder.due_date) {
+      // ONLY auto-generate next reminder if:
+      // 1. We are completing (not reopening)
+      // 2. is_recurring is true
+      // 3. auto_generate is true
+      // 4. recurrence_type is not 'none'
+      // 5. has a due_date
+      if (
+        willBeCompleted && 
+        reminder.is_recurring && 
+        reminder.auto_generate && 
+        reminder.recurrence_type !== 'none' && 
+        reminder.due_date
+      ) {
+        // Calculate next due date based on ORIGINAL due_date, not current date
         const dueDate = new Date(reminder.due_date);
         let nextDueDate: Date;
 
@@ -157,7 +172,7 @@ export function useReminders() {
             nextDueDate = dueDate;
         }
 
-        // Create next recurring reminder
+        // Create next recurring reminder with same properties
         await supabase
           .from('reminders')
           .insert({
@@ -171,15 +186,17 @@ export function useReminders() {
             recurrence_type: reminder.recurrence_type,
             recurrence_day: reminder.recurrence_day,
             parent_reminder_id: reminder.parent_reminder_id || reminder.id,
-          });
+            auto_generate: true,
+          } as any);
       }
 
       return { data, reminder };
     },
     onSuccess: ({ data, reminder }) => {
       queryClient.invalidateQueries({ queryKey: ['reminders'] });
-      if (data.is_completed) {
-        if (reminder.is_recurring && reminder.recurrence_type !== 'none') {
+      const isCompleted = (data as any).is_completed;
+      if (isCompleted) {
+        if (reminder.is_recurring && reminder.auto_generate && reminder.recurrence_type !== 'none') {
           toast.success('Lembrete concluído! Próximo lembrete criado automaticamente.');
         } else {
           toast.success('Lembrete concluído!');

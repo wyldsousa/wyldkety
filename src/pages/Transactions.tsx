@@ -239,7 +239,7 @@ export default function Transactions() {
                     id="date" 
                     name="date" 
                     type="date" 
-                    defaultValue={editingTransaction?.date || new Date().toISOString().split('T')[0]}
+                    defaultValue={editingTransaction?.date || format(new Date(), 'yyyy-MM-dd')}
                     required 
                   />
                 </div>
