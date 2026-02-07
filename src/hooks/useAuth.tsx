@@ -50,7 +50,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (!error && data.user) {
+      // Record login in history
+      await supabase.from('login_history').insert({ user_id: data.user.id });
+    }
     return { error };
   };
 

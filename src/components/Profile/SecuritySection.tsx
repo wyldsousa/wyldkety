@@ -3,25 +3,23 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Shield, Eye, EyeOff, LogOut, Loader2 } from 'lucide-react';
+import { Shield, Eye, EyeOff, LogOut, Loader2, Clock } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { PasswordStrengthIndicator } from '@/components/PasswordStrengthIndicator';
+import { useLoginHistory } from '@/hooks/useLoginHistory';
 
 export function SecuritySection() {
   const { user, signOut } = useAuth();
+  const { history, loading: historyLoading } = useLoginHistory();
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isSigningOutAll, setIsSigningOutAll] = useState(false);
-
-  const lastSignIn = user?.last_sign_in_at
-    ? new Date(user.last_sign_in_at).toLocaleString('pt-BR')
-    : 'Não disponível';
 
   const handleChangePassword = async () => {
     if (newPassword.length < 6) {
@@ -70,9 +68,32 @@ export function SecuritySection() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="p-3 rounded-lg bg-muted/50">
-          <p className="text-sm text-muted-foreground">Último acesso</p>
-          <p className="text-sm font-medium text-foreground">{lastSignIn}</p>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 mb-1">
+            <Clock className="w-4 h-4 text-muted-foreground" />
+            <p className="text-sm font-medium text-foreground">Histórico de acessos</p>
+          </div>
+          <div className="max-h-40 overflow-y-auto rounded-lg border border-border divide-y divide-border">
+            {historyLoading ? (
+              <div className="p-3 text-center">
+                <Loader2 className="w-4 h-4 animate-spin mx-auto text-muted-foreground" />
+              </div>
+            ) : history.length === 0 ? (
+              <p className="p-3 text-sm text-muted-foreground text-center">Nenhum acesso registrado</p>
+            ) : (
+              history.map((record) => {
+                const date = new Date(record.logged_in_at);
+                const formattedDate = date.toLocaleDateString('pt-BR');
+                const formattedTime = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                return (
+                  <div key={record.id} className="flex justify-between items-center px-3 py-2">
+                    <span className="text-sm text-foreground">{formattedDate}</span>
+                    <span className="text-sm text-muted-foreground">{formattedTime}</span>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
 
         {showChangePassword ? (
@@ -135,7 +156,7 @@ export function SecuritySection() {
             <AlertDialogHeader>
               <AlertDialogTitle>Encerrar todas as sessões?</AlertDialogTitle>
               <AlertDialogDescription>
-                Você será desconectado de todos os dispositivos, incluindo este.
+                Tem certeza que deseja encerrar todas as sessões ativas?
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
