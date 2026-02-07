@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { ThemeProvider } from "next-themes";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import { AssistantChatProvider } from "./contexts/AssistantChatContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
@@ -39,6 +40,7 @@ const App = () => {
   const handleSplashFinish = useCallback(() => setShowSplash(false), []);
 
   return (
+  <ThemeProvider attribute="class" defaultTheme="system" enableSystem storageKey="financeapp-theme">
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
         <AssistantChatProvider>
@@ -138,6 +140,7 @@ const App = () => {
         </AssistantChatProvider>
     </AuthProvider>
   </QueryClientProvider>
+  </ThemeProvider>
   );
 };
 
