@@ -1,26 +1,16 @@
-import { ReactNode } from 'react';
-import { Navigate } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
-import { Loader2 } from 'lucide-react';
+import { Navigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 
-interface ProtectedRouteProps {
-  children: ReactNode;
-}
-
-export function ProtectedRoute({ children }: ProtectedRouteProps) {
+const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
   const { user, loading } = useAuth();
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
+  if (loading) return null;
 
   if (!user) {
     return <Navigate to="/auth" replace />;
   }
 
-  return <>{children}</>;
-}
+  return children;
+};
+
+export default ProtectedRoute;
